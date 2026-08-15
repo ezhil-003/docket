@@ -48,55 +48,37 @@ Write in the terminal, open an existing document, or pipe Markdown from another 
 
 ### macOS and Linux — release binary
 
-The installer detects the operating system and CPU architecture, downloads the matching release, verifies its SHA-256 checksum, and installs atomically into `~/.local/bin`.
+The installer detects your OS and CPU architecture, downloads the matching release binary, verifies its SHA-256 checksum, and installs atomically into `~/.local/bin`.
 
 ```bash
-curl --fail --silent --show-error --location \
-  https://raw.githubusercontent.com/ezhilsivaraj/docket/main/scripts/install.sh \
-  --output /tmp/docket-install.sh
-bash /tmp/docket-install.sh
+curl -fsSL https://raw.githubusercontent.com/ezhilsivaraj/docket/main/scripts/install.sh | bash
 ```
 
-For a pinned release or a custom install directory:
+To install a pinned release or use a custom install directory:
 
 ```bash
-bash /tmp/docket-install.sh --version v1.2.1 --dir "$HOME/.local/bin"
+curl -fsSL https://raw.githubusercontent.com/ezhilsivaraj/docket/main/scripts/install.sh | bash -s -- --version v1.2.2 --dir "$HOME/.local/bin"
 ```
 
-The installer supports `linux-x64`, `darwin-x64`, and `darwin-arm64`. Linux ARM64 users can use the Bun global path until a native ARM64 release artifact is added. It fails closed when the release checksum is missing or invalid.
+The installer supports `linux-x64`, `darwin-x64`, and `darwin-arm64`. It fails closed when the release checksum is missing or invalid.
 
 ### Windows — PowerShell
 
-Download the script, inspect it if required by your organization, then run it in PowerShell:
+Run the installer directly in PowerShell:
 
 ```powershell
-Invoke-WebRequest `
-  -Uri https://raw.githubusercontent.com/ezhilsivaraj/docket/main/scripts/install.ps1 `
-  -OutFile "$env:TEMP\docket-install.ps1"
-& "$env:TEMP\docket-install.ps1"
+irm https://raw.githubusercontent.com/ezhilsivaraj/docket/main/scripts/install.ps1 | iex
 ```
 
-Use `-Version v1.2.1`, `-InstallDir C:\Tools\Docket`, or `-Force` when needed. The installer verifies SHA-256 and adds the user-level install directory to PATH without requiring administrator privileges.
+The installer verifies SHA-256 checksums and adds Docket to your user PATH without requiring administrator privileges.
 
 ### Bun global installation
 
-If you prefer Bun to manage the TypeScript CLI globally:
+If you prefer Bun to manage the CLI globally:
 
 ```bash
 bun install --global github:ezhilsivaraj/docket#main
 docket --help
-```
-
-Or use the platform installer’s Bun path:
-
-```bash
-DOCKET_USE_BUN=1 bash /tmp/docket-install.sh
-```
-
-On Windows:
-
-```powershell
-& "$env:TEMP\docket-install.ps1" -UseBun
 ```
 
 The release-binary path is recommended for end users; Bun global mode is useful for contributors and environments that already standardize on Bun.
