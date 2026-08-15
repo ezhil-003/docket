@@ -1,16 +1,88 @@
 import { describe, it, expect, afterAll } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
-import { renderPdf } from "../src/core/render";
+import { BrowserManager, renderPdf } from "../src/core/render";
+import type { Browser, Page } from "puppeteer";
 
-describe("PDF Renderer Integration Tests (render.ts)", () => {
-  const tempOutputDir = path.join(__dirname, "../temp-test-output");
+const tempOutputDir = path.join(__dirname, "../temp-test-output");
 
+describe("PDF Renderer HTML pipeline (render.ts)", () => {
   afterAll(() => {
     if (fs.existsSync(tempOutputDir)) {
       fs.rmSync(tempOutputDir, { recursive: true, force: true });
     }
   });
+
+  it("should export dry-run HTML without starting Chromium", async () => {
+    const htmlPath = path.join(tempOutputDir, "only.html");
+    const result = await renderPdf({
+      markdownSource: "# HTML only\n\nThis does not require a browser.",
+      themeId: "executive",
+      outputPath: path.join(tempOutputDir, "never-created.pdf"),
+      dryRunHtmlPath: htmlPath,
+      dryRunOnly: true,
+    });
+    expect(result.outputPath).toBe(htmlPath);
+    expect(fs.existsSync(htmlPath)).toBe(true);
+    expect(fs.existsSync(path.join(tempOutputDir, "never-created.pdf"))).toBe(false);
+  });
+
+  it("accepts a directory as the output target and resolves a safe PDF filename", async () => {
+    const htmlPath = path.join(tempOutputDir, "directory-target.html");
+    const result = await renderPdf({
+      markdownSource: "# Directory target",
+      outputPath: tempOutputDir,
+      dryRunHtmlPath: htmlPath,
+      dryRunOnly: true,
+    });
+    expect(result.outputPath).toBe(htmlPath);
+    expect(fs.existsSync(path.join(tempOutputDir, "docket-output.pdf"))).toBe(false);
+  });
+
+  it("rejects an already-cancelled render before starting Chromium", async () => {
+    const controller = new AbortController();
+    controller.abort();
+    await expect(renderPdf({
+      markdownSource: "# Cancelled",
+      outputPath: path.join(tempOutputDir, "cancelled.pdf"),
+      signal: controller.signal,
+    })).rejects.toMatchObject({ code: "ERR_PUPPETEER_RENDER" });
+  });
+
+  it("relaunches Chromium after the managed browser disconnects", async () => {
+    let launches = 0;
+    let firstBrowser: { connected: boolean; close: () => Promise<void>; newPage: () => Promise<Page> } | undefined;
+    const secondBrowser = {
+      connected: true,
+      close: async () => undefined,
+      newPage: async () => ({}) as Page,
+    };
+    const manager = new BrowserManager({
+      launch: async () => {
+        launches++;
+        if (launches === 1) {
+          firstBrowser = {
+            connected: true,
+            close: async () => undefined,
+            newPage: async () => ({}) as Page,
+          };
+          return firstBrowser as unknown as Browser;
+        }
+        return secondBrowser as unknown as Browser;
+      },
+    });
+
+    await manager.acquirePage();
+    if (!firstBrowser) throw new Error("Test browser was not launched");
+    firstBrowser.connected = false;
+    await manager.acquirePage();
+
+    expect(launches).toBe(2);
+    await manager.close();
+  });
+});
+
+describe.skipIf(!process.env.DOCKET_RUN_BROWSER_TESTS)("PDF Renderer Chromium integration tests (render.ts)", () => {
 
   it("should generate a dry-run HTML export without errors", async () => {
     const htmlPath = path.join(tempOutputDir, "dry-run.html");

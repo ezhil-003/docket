@@ -1,82 +1,214 @@
-# Docket
+<div align="center">
+  <picture>
+    <source srcset="./assets/banner-dark.svg" media="(prefers-color-scheme: dark)" />
+    <source srcset="./assets/banner-light.svg" media="(prefers-color-scheme: light)" />
+    <img src="./assets/banner-light.svg" alt="Docket — Markdown to Executive PDF Engine" />
+  </picture>
 
-> Production-Grade Executive Markdown → PDF Engine powered by Bun, TypeScript, OpenTUI, and Puppeteer.
+  <p>
+    <img src="https://img.shields.io/badge/runtime-Bun-000000?style=flat&logo=bun&logoColor=white" alt="Bun" />
+    <img src="https://img.shields.io/badge/language-TypeScript-3178C6?style=flat&logo=typescript&logoColor=white" alt="TypeScript" />
+    <img src="https://img.shields.io/badge/tests-48%20passing-22c55e?style=flat" alt="48 tests passing" />
+    <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-8b5cf6?style=flat" alt="MIT License" /></a>
+  </p>
 
----
+  <p>
+    <a href="#installation">Install</a>
+    · <a href="#quick-start">Quick start</a>
+    · <a href="./CHANGELOG.md">Changelog</a>
+    · <a href="./SECURITY.md">Security</a>
+  </p>
+</div>
 
-## Key Features
+## Docket
 
-- **Real-Time Markdown Editor Diagnostics**:
-  - Live linting on every keypress in the OpenTUI editor area.
-  - Displays line numbers, severities (🔴 Error vs ⚠️ Warning), rule IDs (`MD001` to `MD008`), and actionable fix hints.
-- **Pre-Conversion Safeguard Gate**:
-  - Automatically validates Markdown structure prior to PDF generation.
-  - Blocks conversion if critical syntax errors are present, preventing the creation of corrupted output files.
-  - Optional `--force` flag to bypass linting in CLI mode.
-- **Graceful Error Architecture & Orphan Process Traps**:
-  - Structured `DocketError` hierarchy (`MarkdownLintError`, `PuppeteerRenderError`, `FileAccessError`) with human-friendly user hints.
-  - Process signal traps (`process.on('SIGINT')`, `process.on('SIGTERM')`) to guarantee zero orphaned Chromium browser processes.
-- **Strict Margin Safety Contract**:
-  - Zero outer `@page { margin: 0; }` prevents content from clipping under margins.
-  - Safe internal container padding (`padding: 18mm 16mm 20mm 16mm`).
-  - Page break guards (`break-inside: avoid`) on tables, code blocks, blockquotes, and callouts.
-  - Font load guarantee (`document.fonts.ready`) before capture.
-- **6 Selectable Executive Theme Presets**:
-  - `modern`: Modern Indigo theme with indigo/purple gradient headings, pill accents, and rounded tables.
-  - `executive`: Boardroom navy & royal blue accent with Jakarta/Inter fonts.
-  - `technical`: Cyan slate layout with JetBrains Mono highlights.
-  - `legal`: Formal serif body (*Source Serif 4*) and traditional navy headers.
-  - `boardroom`: Warm charcoal with amber & bronze accents.
-  - `minimal`: Clean monochrome layout with restrained typography.
+Docket turns Markdown into polished, margin-safe executive PDFs. It combines a fast Bun/TypeScript CLI with a spacious OpenTUI workspace, live diagnostics, reusable themes, and a carefully isolated Puppeteer rendering pipeline.
 
----
+Write in the terminal, open an existing document, or pipe Markdown from another command. Docket validates the document, renders it with the selected visual system, and publishes the PDF atomically so incomplete files are never left behind.
 
-## Installation & Setup
+### Why Docket
+
+- **Readable by default** — an OpenCode-inspired terminal workspace with a focused editor, diagnostics panel, messages, clickable actions, and responsive layouts.
+- **Safe to automate** — structured errors, signal handling, cancellation, browser recovery, bounded STDIN reads, and stable exit codes.
+- **Built for real documents** — margin-safe A4 output, font readiness checks, tables, code blocks, callouts, Markdown links, and 1,000-line documents.
+- **Designed to extend** — Functional Core / Imperative Shell, Ports and Adapters, dependency injection, reducer state, Strategy/Registry themes, and staged rendering.
+
+## Highlights
+
+| Area | What you get |
+| --- | --- |
+| Markdown | `markdown-it` parsing with tables, links, code blocks, lists, blockquotes, and safe class-based HTML |
+| Diagnostics | Debounced linting with line numbers, rule IDs, severities, and suggestions |
+| PDF output | Puppeteer Chromium rendering with A4 sizing, zero outer margins, internal safe padding, and atomic publication |
+| Themes | `modern`, `executive`, `technical`, `legal`, `boardroom`, and `minimal` |
+| TUI | Startup screen, editor workspace, diagnostics/messages panel, mouse actions, keyboard shortcuts, and responsive layout |
+| Reliability | Recoverable browser lifecycle, async cold-cache theme loading, cancellation, graceful crash handling, and structured errors |
+
+## Installation
+
+### macOS and Linux — release binary
+
+The installer detects the operating system and CPU architecture, downloads the matching release, verifies its SHA-256 checksum, and installs atomically into `~/.local/bin`.
 
 ```bash
-bun install
+curl --fail --silent --show-error --location \
+  https://raw.githubusercontent.com/ezhilsivaraj/docket/main/scripts/install.sh \
+  --output /tmp/docket-install.sh
+bash /tmp/docket-install.sh
 ```
 
----
+For a pinned release or a custom install directory:
 
-## Quick Usage
-
-### 1. Run Interactive OpenTUI App with Live Editor Diagnostics
 ```bash
+bash /tmp/docket-install.sh --version v1.2.0 --dir "$HOME/.local/bin"
+```
+
+The installer supports `linux-x64`, `darwin-x64`, and `darwin-arm64`. Linux ARM64 users can use the Bun global path until a native ARM64 release artifact is added. It fails closed when the release checksum is missing or invalid.
+
+### Windows — PowerShell
+
+Download the script, inspect it if required by your organization, then run it in PowerShell:
+
+```powershell
+Invoke-WebRequest `
+  -Uri https://raw.githubusercontent.com/ezhilsivaraj/docket/main/scripts/install.ps1 `
+  -OutFile "$env:TEMP\docket-install.ps1"
+& "$env:TEMP\docket-install.ps1"
+```
+
+Use `-Version v1.2.0`, `-InstallDir C:\Tools\Docket`, or `-Force` when needed. The installer verifies SHA-256 and adds the user-level install directory to PATH without requiring administrator privileges.
+
+### Bun global installation
+
+If you prefer Bun to manage the TypeScript CLI globally:
+
+```bash
+bun install --global github:ezhilsivaraj/docket#main
+docket --help
+```
+
+Or use the platform installer’s Bun path:
+
+```bash
+DOCKET_USE_BUN=1 bash /tmp/docket-install.sh
+```
+
+On Windows:
+
+```powershell
+& "$env:TEMP\docket-install.ps1" -UseBun
+```
+
+The release-binary path is recommended for end users; Bun global mode is useful for contributors and environments that already standardize on Bun.
+
+### Development setup
+
+```bash
+git clone https://github.com/ezhilsivaraj/docket.git
+cd docket
+bun install --frozen-lockfile
+```
+
+Requirements: Bun 1.x and a Chromium-compatible environment for PDF generation. Dry-run HTML exports and the unit test suite do not require launching Chromium.
+
+## Quick Start
+
+### Interactive workspace
+
+```bash
+# From a checkout (the interactive UI is intentionally a development/runtime entry point)
 bun run start
-# or
-bun run tui
 ```
 
-### 2. Run Non-Interactive CLI Engine
+The startup screen lets you paste Markdown or open a file. The workspace places the document editor on the left and diagnostics/messages on the right. Buttons and shortcuts trigger the same actions. Installed release binaries expose the non-interactive `docket` CLI; run the TUI from a checkout with Bun.
+
+### CLI conversion
+
 ```bash
 # Convert a Markdown file
-bun run cli document.md -t modern -o report.pdf
+docket document.md --theme modern --output report.pdf
 
-# Pipe STDIN input
-echo "# Hello Docket" | bun run cli --paste -t modern -o hello.pdf
+# Read Markdown from STDIN
+cat document.md | docket --paste --theme technical --output report.pdf
+
+# Export the assembled HTML without starting Chromium
+docket document.md --dry-run report.html
 ```
 
-### 3. Run Vitest Test Suite
-```bash
-bun test
-```
+### Keyboard controls
 
----
+| Shortcut | Action |
+| --- | --- |
+| `Ctrl+Enter` | Start the workspace or generate the PDF |
+| `Ctrl+O` | Open file mode |
+| `Tab` | Move between controls |
+| `Esc` | Interrupt rendering or leave the startup screen |
+| `Ctrl+D` | Toggle diagnostics on compact terminals |
+| `Ctrl+Q` | Quit |
 
 ## CLI Options
 
 | Flag | Description | Default |
-| :--- | :--- | :--- |
-| `-t, --theme <theme>` | Preset (`modern`, `executive`, `technical`, `legal`, `boardroom`, `minimal`) | `executive` |
-| `-o, --output <file>` | Destination output PDF path | `<input>.pdf` or `docket-output.pdf` |
-| `-p, --paste` | Read Markdown content from STDIN pipe | `false` |
-| `--force` | Bypass pre-conversion linting error gates | `false` |
-| `--dry-run <out.html>`| Export intermediate HTML document without browser render | `undefined` |
-| `-h, --help` | Display usage instructions | — |
+| --- | --- | --- |
+| `-t, --theme <theme>` | `modern`, `executive`, `technical`, `legal`, `boardroom`, or `minimal` | `executive` |
+| `-o, --output <file.pdf>` | Destination PDF path; directories receive `docket-output.pdf` | Input name + `.pdf` |
+| `-p, --paste` | Read Markdown from STDIN | `false` |
+| `--force` | Bypass lint error gates | `false` |
+| `--dry-run <out.html>` | Export intermediate HTML without browser rendering | — |
+| `-h, --help` | Display usage | — |
 
----
+## Themes
+
+| Theme | Character |
+| --- | --- |
+| `executive` | Navy and royal-blue boardroom styling |
+| `modern` | Indigo/purple gradients and rounded accents |
+| `technical` | Slate, cyan, and compact code-forward typography |
+| `legal` | Formal serif body and traditional navy headers |
+| `boardroom` | Warm charcoal with amber and bronze accents |
+| `minimal` | Restrained monochrome presentation |
+
+## Architecture
+
+Docket keeps deterministic transformation logic separate from process and terminal effects:
+
+```text
+Markdown source
+      │
+      ▼
+ Functional core: parse → lint → assemble
+      │
+      ▼
+ Imperative shell: filesystem → Chromium → atomic PDF publish
+      │
+      ├── CLI adapter
+      └── OpenTUI adapter
+```
+
+The codebase uses Functional Core / Imperative Shell, Ports and Adapters, dependency injection, reducer-driven TUI state, Strategy/Registry themes, and a staged conversion pipeline. The default browser manager is a lifecycle helper, not a general-purpose global service.
+
+## Development Commands
+
+```bash
+bun install --frozen-lockfile
+bun test                         # unit and pipeline tests
+DOCKET_RUN_BROWSER_TESTS=1 bun test
+bunx tsc --noEmit                # strict type-check
+bun run build                    # compile the CLI binary
+```
+
+Release tags (`v*.*.*`) build native binaries for macOS Intel/Apple Silicon, Linux x64/ARM64, and Windows x64, then publish `SHA256SUMS` for installer verification. See [`.github/workflows/release.yml`](./.github/workflows/release.yml).
+
+## Security
+
+Markdown is treated as document input, not application code. Docket removes executable raw HTML content and disables JavaScript in the PDF page. Do not pass sensitive or untrusted documents to custom themes or external assets without reviewing your deployment policy.
+
+Please report vulnerabilities privately according to [SECURITY.md](./SECURITY.md).
+
+## Contributing
+
+Bug reports, documentation improvements, themes, tests, and implementation contributions are welcome. Read [CONTRIBUTING.md](./CONTRIBUTING.md) and run the full verification commands before opening a pull request.
 
 ## License
 
-MIT © Docket
+MIT © Docket. See [LICENSE](./LICENSE).

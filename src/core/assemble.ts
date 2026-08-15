@@ -1,5 +1,5 @@
 import { parseMarkdown } from "./parse";
-import { loadThemeCss, type ThemeId } from "./themes";
+import { loadThemeCss, loadThemeCssAsync, type ThemeId } from "./themes";
 
 function escapeHtml(str: string): string {
   return str
@@ -14,14 +14,7 @@ function escapeHtml(str: string): string {
  * Assembles full HTML document ready for Puppeteer rendering.
  * The `<div class="page-content">` wrapper is mandatory to carry visual margins safely.
  */
-export function assembleHtml(
-  markdownSource: string,
-  themeId: ThemeId = "executive",
-  title = "Docket Document"
-): string {
-  const bodyHtml = parseMarkdown(markdownSource);
-  const css = loadThemeCss(themeId);
-
+function renderDocument(bodyHtml: string, css: string, title: string): string {
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -38,4 +31,25 @@ ${bodyHtml}
   </div>
 </body>
 </html>`;
+}
+
+export function assembleHtml(
+  markdownSource: string,
+  themeId: ThemeId = "executive",
+  title = "Docket Document"
+): string {
+  return renderDocument(parseMarkdown(markdownSource), loadThemeCss(themeId), title);
+}
+
+/** Non-blocking variant used by renderPdf while retaining the sync API above. */
+export async function assembleHtmlAsync(
+  markdownSource: string,
+  themeId: ThemeId = "executive",
+  title = "Docket Document"
+): Promise<string> {
+  const [bodyHtml, css] = await Promise.all([
+    Promise.resolve(parseMarkdown(markdownSource)),
+    loadThemeCssAsync(themeId),
+  ]);
+  return renderDocument(bodyHtml, css, title);
 }

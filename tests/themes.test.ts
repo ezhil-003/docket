@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { loadThemeCss, isValidThemeId, THEME_IDS, THEMES } from "../src/core/themes";
+import { loadThemeCss, loadThemeCssAsync, isValidThemeId, THEME_IDS, THEMES } from "../src/core/themes";
 
 describe("Theme Registry & CSS Loader (themes.ts)", () => {
   it("should validate all 6 official theme IDs including modern", () => {
@@ -35,5 +35,11 @@ describe("Theme Registry & CSS Loader (themes.ts)", () => {
     expect(modernCss).toContain("Modern Indigo Theme Preset");
     expect(modernCss).toContain("--color-accent: #4f46e5;");
     expect(modernCss).toContain("linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)");
+  });
+
+  it("loads theme CSS asynchronously for the render pipeline", async () => {
+    const css = await loadThemeCssAsync("technical");
+    expect(css).toContain("Theme Preset: technical");
+    expect(css).toContain("@page");
   });
 });

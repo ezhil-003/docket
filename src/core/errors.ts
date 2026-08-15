@@ -3,16 +3,27 @@
  */
 
 export class DocketError extends Error {
+  public override name: string;
   public readonly code: string;
   public readonly userHint?: string;
   public readonly fatal: boolean;
+  public readonly stage?: string;
+  public override readonly cause?: unknown;
 
-  constructor(message: string, code = "ERR_DOCKET_GENERAL", userHint?: string, fatal = true) {
+  constructor(
+    message: string,
+    code = "ERR_DOCKET_GENERAL",
+    userHint?: string,
+    fatal = true,
+    options: { stage?: string; cause?: unknown } = {},
+  ) {
     super(message);
     this.name = "DocketError";
     this.code = code;
     this.userHint = userHint;
     this.fatal = fatal;
+    this.stage = options.stage;
+    this.cause = options.cause;
 
     // Restore prototype chain
     Object.setPrototypeOf(this, new.target.prototype);
@@ -57,12 +68,27 @@ export class FileAccessError extends DocketError {
   }
 }
 
+export class CliUsageError extends DocketError {
+  constructor(message: string, userHint = "Run 'docket --help' to see valid options.") {
+    super(message, "ERR_CLI_USAGE", userHint, false, { stage: "cli" });
+    this.name = "CliUsageError";
+  }
+}
+
+export class OutputPathError extends DocketError {
+  constructor(message: string) {
+    super(message, "ERR_OUTPUT_PATH", "Choose a writable folder and provide a PDF filename such as report.pdf.", false, { stage: "output" });
+    this.name = "OutputPathError";
+  }
+}
+
 /**
  * Formats any caught error into a clean, human-readable Docket diagnostic message.
  */
 export function formatDocketError(err: unknown): string {
   if (err instanceof DocketError) {
-    let output = `[Docket Error] (${err.code}): ${err.message}`;
+    const stage = err.stage ? ` [${err.stage}]` : "";
+    let output = `[Docket Error] (${err.code})${stage}: ${err.message}`;
     if (err.userHint) {
       output += `\n  ↳ Hint: ${err.userHint}`;
     }

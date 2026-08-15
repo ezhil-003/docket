@@ -5,6 +5,7 @@ import {
   ThemeNotFoundError,
   PuppeteerRenderError,
   FileAccessError,
+  OutputPathError,
   formatDocketError,
 } from "../src/core/errors";
 
@@ -42,5 +43,11 @@ describe("Docket Error Architecture & Formatters (errors.ts)", () => {
     const formatted = formatDocketError(err);
     expect(formatted).toContain("[Docket Error] (ERR_PERM): Access denied");
     expect(formatted).toContain("↳ Hint: Check permissions");
+  });
+
+  it("should identify invalid output targets separately from renderer failures", () => {
+    const err = new OutputPathError("PDF filename cannot be empty.");
+    expect(err.code).toBe("ERR_OUTPUT_PATH");
+    expect(formatDocketError(err)).toContain("Choose a writable folder");
   });
 });

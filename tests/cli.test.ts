@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { getHelpText } from "../src/cli";
+import { getHelpText, parseCliArgs } from "../src/cli";
+import { CliUsageError } from "../src/core/errors";
 
 describe("CLI Engine (cli.ts)", () => {
   it("should generate help text containing Docket usage, flags, and theme options", () => {
@@ -14,5 +15,22 @@ describe("CLI Engine (cli.ts)", () => {
     expect(help).toContain("legal");
     expect(help).toContain("boardroom");
     expect(help).toContain("minimal");
+  });
+
+  it("parses a complete command without exiting the process", () => {
+    expect(parseCliArgs(["report.md", "--theme", "modern", "--output", "out.pdf", "--force"]))
+      .toEqual({
+        inputPath: "report.md",
+        themeId: "modern",
+        outputPath: "out.pdf",
+        paste: false,
+        forceLint: true,
+      });
+  });
+
+  it("rejects unknown options, missing values, and conflicting sources", () => {
+    expect(() => parseCliArgs(["--unknown"])).toThrow(CliUsageError);
+    expect(() => parseCliArgs(["--theme"])).toThrow(CliUsageError);
+    expect(() => parseCliArgs(["--paste", "report.md"])).toThrow(CliUsageError);
   });
 });

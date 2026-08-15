@@ -48,4 +48,14 @@ describe("Markdown Parser (parse.ts)", () => {
     const html = parseMarkdown(md);
     expect(html).toContain('<div class="custom-badge">Badge</div>');
   });
+
+  it("removes executable raw HTML while preserving safe content", () => {
+    const html = parseMarkdown(
+      '<div class="callout" onclick="alert(1)">Safe label</div><script>alert(2)</script><a href="javascript:alert(3)">Link</a>',
+    );
+    expect(html).toContain('<div class="callout">Safe label</div>');
+    expect(html).not.toContain("<script");
+    expect(html).not.toContain("onclick");
+    expect(html).toContain('href="#"');
+  });
 });

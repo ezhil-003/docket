@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import fsp from "node:fs/promises";
 import path from "node:path";
 
 export const THEME_IDS = [
@@ -58,12 +59,18 @@ export const THEMES: Record<ThemeId, ThemeMeta> = {
   },
 };
 
+const cssCache = new Map<ThemeId, string>();
+const asyncCssLoads = new Map<ThemeId, Promise<string>>();
+
 export function isValidThemeId(theme: string): theme is ThemeId {
   return THEME_IDS.includes(theme as ThemeId);
 }
 
 export function loadThemeCss(themeId: ThemeId = "executive"): string {
   const currentThemeId = isValidThemeId(themeId) ? themeId : "executive";
+
+  const cached = cssCache.get(currentThemeId);
+  if (cached) return cached;
 
   const themesDir = path.resolve(import.meta.dirname ?? __dirname, "../themes");
 
@@ -85,5 +92,55 @@ export function loadThemeCss(themeId: ThemeId = "executive"): string {
     throw new Error(`Failed to load theme CSS for '${currentThemeId}' from ${themePath}: ${err}`);
   }
 
-  return `${baseCss}\n\n/* Theme Preset: ${currentThemeId} */\n${themeCss}`;
+  const css = `${baseCss}\n\n/* Theme Preset: ${currentThemeId} */\n${themeCss}`;
+  cssCache.set(currentThemeId, css);
+  return css;
+}
+
+/**
+ * Async counterpart used by the PDF render pipeline so a cold theme load does
+ * not block the event loop. The synchronous API above remains available for
+ * callers that already depend on assembleHtml being synchronous.
+ */
+export async function loadThemeCssAsync(themeId: ThemeId = "executive"): Promise<string> {
+  const currentThemeId = isValidThemeId(themeId) ? themeId : "executive";
+  const cached = cssCache.get(currentThemeId);
+  if (cached) return cached;
+
+  const pending = asyncCssLoads.get(currentThemeId);
+  if (pending) return pending;
+
+  const themesDir = path.resolve(import.meta.dirname ?? __dirname, "../themes");
+  const basePath = path.join(themesDir, "_base.css");
+  const themePath = path.join(themesDir, `${currentThemeId}.css`);
+  const load = (async () => {
+    let baseCss = "";
+    let themeCss = "";
+    try {
+      baseCss = await fsp.readFile(basePath, "utf-8");
+    } catch (err) {
+      throw new Error(`Failed to load base theme CSS from ${basePath}: ${err}`);
+    }
+    try {
+      themeCss = await fsp.readFile(themePath, "utf-8");
+    } catch (err) {
+      throw new Error(`Failed to load theme CSS for '${currentThemeId}' from ${themePath}: ${err}`);
+    }
+
+    const css = `${baseCss}\n\n/* Theme Preset: ${currentThemeId} */\n${themeCss}`;
+    cssCache.set(currentThemeId, css);
+    return css;
+  })();
+
+  asyncCssLoads.set(currentThemeId, load);
+  try {
+    return await load;
+  } finally {
+    asyncCssLoads.delete(currentThemeId);
+  }
+}
+
+export function clearThemeCssCache(): void {
+  cssCache.clear();
+  asyncCssLoads.clear();
 }
