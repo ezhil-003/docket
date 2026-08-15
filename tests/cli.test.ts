@@ -6,6 +6,7 @@ describe("CLI Engine (cli.ts)", () => {
   it("should generate help text containing Docket usage, flags, and theme options", () => {
     const help = getHelpText();
     expect(help).toContain("Docket - Production-Grade Executive Markdown → PDF Engine");
+    expect(help).toContain("Launch interactive TUI workspace");
     expect(help).toContain("-t, --theme <theme>");
     expect(help).toContain("-o, --output <file.pdf>");
     expect(help).toContain("-p, --paste");
@@ -15,6 +16,17 @@ describe("CLI Engine (cli.ts)", () => {
     expect(help).toContain("legal");
     expect(help).toContain("boardroom");
     expect(help).toContain("minimal");
+  });
+
+  it("parses empty arguments into default options", () => {
+    expect(parseCliArgs([])).toEqual({
+      themeId: "executive",
+      outputPath: undefined,
+      inputPath: undefined,
+      paste: false,
+      forceLint: false,
+      dryRunHtmlPath: undefined,
+    });
   });
 
   it("parses a complete command without exiting the process", () => {

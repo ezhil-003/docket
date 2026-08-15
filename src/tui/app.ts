@@ -60,7 +60,7 @@ function makeButton(renderer: Renderer, label: string, action: () => void): { bo
   return { box, text };
 }
 
-async function runTuiApp(): Promise<void> {
+export async function runTuiApp(): Promise<void> {
   const renderer = await createCliRenderer({
     exitOnCtrlC: false,
     useMouse: true,
@@ -528,8 +528,10 @@ async function runTuiApp(): Promise<void> {
   updateLayout();
 }
 
-void runTuiApp().catch(async (error) => {
-  console.error(formatDocketError(error));
-  await shutdownRenderer();
-  process.exitCode = 1;
-});
+if (import.meta.url === `file://${process.argv[1]}` || process.argv[1]?.endsWith("app.ts")) {
+  void runTuiApp().catch(async (error) => {
+    console.error(formatDocketError(error));
+    await shutdownRenderer();
+    process.exitCode = 1;
+  });
+}

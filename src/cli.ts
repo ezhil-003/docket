@@ -5,6 +5,7 @@ import { THEME_IDS, THEMES, isValidThemeId, type ThemeId } from "./core/themes";
 import { lintMarkdown } from "./core/lint";
 import { CliUsageError, formatDocketError } from "./core/errors";
 import { NodeFileSystem } from "./core/fs";
+import { runTuiApp } from "./tui/app";
 
 const fileSystem = new NodeFileSystem();
 
@@ -22,8 +23,9 @@ export function getHelpText(): string {
 Docket - Production-Grade Executive Markdown → PDF Engine
 
 USAGE:
-  $ docket <input.md> [options]
-  $ cat input.md | docket --paste [options]
+  $ docket                     Launch interactive TUI workspace
+  $ docket <input.md> [options] Convert Markdown file via CLI
+  $ cat input.md | docket      Convert Markdown from STDIN via CLI
 
 OPTIONS:
   -t, --theme <theme>      Select theme preset (default: executive)
@@ -107,8 +109,8 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
     }
     if (!parsed.paste && !parsed.inputPath) {
       if (process.stdin.isTTY) {
-        console.error(getHelpText());
-        return 2;
+        await runTuiApp();
+        return 0;
       }
       parsed.paste = true;
     }

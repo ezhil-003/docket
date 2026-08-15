@@ -8,6 +8,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 No changes yet.
 
+## [1.2.5] — 2026-08-16
+
+### Added
+
+- Dual-mode executable routing: running `docket` without arguments in an interactive terminal opens the OpenTUI workspace, while passing arguments runs the CLI pipeline.
+
 ## [1.2.4] — 2026-08-16
 
 ### Fixed
@@ -72,7 +78,8 @@ No changes yet.
 - CLI conversion mode and OpenTUI interactive mode.
 - Margin-safe page layout and font-readiness guarantees.
 
-[Unreleased]: https://github.com/ezhil-003/docket/compare/v1.2.4...HEAD
+[Unreleased]: https://github.com/ezhil-003/docket/compare/v1.2.5...HEAD
+[1.2.5]: https://github.com/ezhil-003/docket/releases/tag/v1.2.5
 [1.2.4]: https://github.com/ezhil-003/docket/releases/tag/v1.2.4
 [1.2.3]: https://github.com/ezhil-003/docket/releases/tag/v1.2.3
 [1.2.2]: https://github.com/ezhil-003/docket/releases/tag/v1.2.2

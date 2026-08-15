@@ -1,6 +1,6 @@
 {
   "name": "docket",
-  "version": "1.2.4",
+  "version": "1.2.5",
   "description": "Docket – Production-Grade Executive Markdown to PDF Engine",
   "module": "src/cli.ts",
   "bin": {
