@@ -1,0 +1,25 @@
+/* Minimal Theme Preset - Clean monochrome, high clarity, restrained typography */
+:root {
+  --font-heading: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-body: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-code: 'JetBrains Mono', monospace;
+
+  --color-primary: #000000;
+  --color-text: #171717;
+  --color-muted: #737373;
+  --color-accent: #171717;
+  --color-accent-soft: #e5e5e5;
+
+  --color-bg: #ffffff;
+  --color-card-bg: #fafafa;
+  --color-border: #d4d4d4;
+
+  --color-code-bg: #171717;
+  --color-code-text: #ffffff;
+  --color-quote-border: #404040;
+  --color-quote-bg: #fafafa;
+
+  --color-table-header-bg: #171717;
+  --color-table-header-text: #ffffff;
+  --color-table-alt-bg: #fafafa;
+}

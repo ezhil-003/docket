@@ -1,0 +1,25 @@
+/* Technical Theme Preset - Cooler cyan, technical & engineering style */
+:root {
+  --font-heading: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-body: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-code: 'JetBrains Mono', monospace;
+
+  --color-primary: #0f172a;
+  --color-text: #1e293b;
+  --color-muted: #64748b;
+  --color-accent: #0891b2;
+  --color-accent-soft: #cff4fc;
+
+  --color-bg: #ffffff;
+  --color-card-bg: #f8fafc;
+  --color-border: #cbd5e1;
+
+  --color-code-bg: #1e293b;
+  --color-code-text: #38bdf8;
+  --color-quote-border: #0891b2;
+  --color-quote-bg: #ecfeff;
+
+  --color-table-header-bg: #0f172a;
+  --color-table-header-text: #38bdf8;
+  --color-table-alt-bg: #f1f5f9;
+}

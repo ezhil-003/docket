@@ -1,0 +1,25 @@
+/* Executive Theme Preset - Default boardroom theme (blue) */
+:root {
+  --font-heading: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  --font-body: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-code: 'JetBrains Mono', monospace;
+
+  --color-primary: #0f172a;
+  --color-text: #334155;
+  --color-muted: #64748b;
+  --color-accent: #2563eb;
+  --color-accent-soft: #dbeafe;
+
+  --color-bg: #ffffff;
+  --color-card-bg: #f8fafc;
+  --color-border: #e2e8f0;
+
+  --color-code-bg: #0f172a;
+  --color-code-text: #f8fafc;
+  --color-quote-border: #2563eb;
+  --color-quote-bg: #eff6ff;
+
+  --color-table-header-bg: #1e293b;
+  --color-table-header-text: #ffffff;
+  --color-table-alt-bg: #f8fafc;
+}

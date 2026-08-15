@@ -1,0 +1,51 @@
+import { describe, it, expect } from "vitest";
+import { parseMarkdown } from "../src/core/parse";
+
+describe("Markdown Parser (parse.ts)", () => {
+  it("should handle empty or whitespace-only markdown source gracefully", () => {
+    expect(parseMarkdown("")).toContain("[Empty Document]");
+    expect(parseMarkdown("   \n\t  ")).toContain("[Empty Document]");
+  });
+
+  it("should parse standard headings and paragraphs", () => {
+    const md = "# Title\n\nParagraph text goes here.";
+    const html = parseMarkdown(md);
+    expect(html).toContain("<h1>Title</h1>");
+    expect(html).toContain("<p>Paragraph text goes here.</p>");
+  });
+
+  it("should parse GFM tables cleanly", () => {
+    const md = `
+| Header 1 | Header 2 |
+| --- | --- |
+| Row 1 | Val 1 |
+| Row 2 | Val 2 |
+`;
+    const html = parseMarkdown(md);
+    expect(html).toContain("<table>");
+    expect(html).toContain("<th>Header 1</th>");
+    expect(html).toContain("<td>Val 1</td>");
+  });
+
+  it("should parse code blocks and inline code", () => {
+    const md = "Use `bun run cli` or code block:\n\n```js\nconsole.log('hello');\n```";
+    const html = parseMarkdown(md);
+    expect(html).toContain("<code>bun run cli</code>");
+    expect(html).toContain('<pre><code class="language-js">console.log(\'hello\');\n</code></pre>');
+  });
+
+  it("should preserve blockquotes and lists", () => {
+    const md = "> Executive callout\n\n- Item 1\n- Item 2";
+    const html = parseMarkdown(md);
+    expect(html).toContain("blockquote");
+    expect(html).toContain("Executive callout");
+    expect(html).toContain("ul");
+    expect(html).toContain("Item 1");
+  });
+
+  it("should allow raw HTML tags when specified", () => {
+    const md = '<div class="custom-badge">Badge</div>';
+    const html = parseMarkdown(md);
+    expect(html).toContain('<div class="custom-badge">Badge</div>');
+  });
+});

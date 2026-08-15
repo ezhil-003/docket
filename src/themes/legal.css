@@ -1,0 +1,25 @@
+/* Legal Theme Preset - Formal serif body, navy header, high elegance */
+:root {
+  --font-heading: 'Source Serif 4', Georgia, serif;
+  --font-body: 'Source Serif 4', Georgia, serif;
+  --font-code: 'JetBrains Mono', monospace;
+
+  --color-primary: #1e1b4b;
+  --color-text: #1e293b;
+  --color-muted: #475569;
+  --color-accent: #312e81;
+  --color-accent-soft: #e0e7ff;
+
+  --color-bg: #ffffff;
+  --color-card-bg: #fafafa;
+  --color-border: #94a3b8;
+
+  --color-code-bg: #1e1b4b;
+  --color-code-text: #e0e7ff;
+  --color-quote-border: #312e81;
+  --color-quote-bg: #f5f3ff;
+
+  --color-table-header-bg: #1e1b4b;
+  --color-table-header-text: #ffffff;
+  --color-table-alt-bg: #f8fafc;
+}

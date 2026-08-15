@@ -1,0 +1,25 @@
+/* Boardroom Theme Preset - Warm amber & bronze tones */
+:root {
+  --font-heading: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+  --font-body: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-code: 'JetBrains Mono', monospace;
+
+  --color-primary: #18181b;
+  --color-text: #27272a;
+  --color-muted: #71717a;
+  --color-accent: #d97706;
+  --color-accent-soft: #fef3c7;
+
+  --color-bg: #ffffff;
+  --color-card-bg: #fafafa;
+  --color-border: #e4e4e7;
+
+  --color-code-bg: #18181b;
+  --color-code-text: #fef3c7;
+  --color-quote-border: #d97706;
+  --color-quote-bg: #fffbeb;
+
+  --color-table-header-bg: #27272a;
+  --color-table-header-text: #fef3c7;
+  --color-table-alt-bg: #fafafa;
+}
