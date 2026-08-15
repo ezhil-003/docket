@@ -9,7 +9,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$repository = if ($env:DOCKET_REPOSITORY) { $env:DOCKET_REPOSITORY } else { "ezhilsivaraj/docket" }
+$repository = if ($env:DOCKET_REPOSITORY) { $env:DOCKET_REPOSITORY } else { "ezhil-003/docket" }
 if (-not $InstallDir) {
     if ($env:DOCKET_INSTALL_DIR) {
         $InstallDir = $env:DOCKET_INSTALL_DIR

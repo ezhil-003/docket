@@ -8,6 +8,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 No changes yet.
 
+## [1.2.3] — 2026-08-16
+
+### Fixed
+
+- Updated repository owner reference to `ezhil-003/docket` across installation scripts and documentation to resolve 404 installation errors.
+
 ## [1.2.2] — 2026-08-15
 
 ### Changed
@@ -60,9 +66,10 @@ No changes yet.
 - CLI conversion mode and OpenTUI interactive mode.
 - Margin-safe page layout and font-readiness guarantees.
 
-[Unreleased]: https://github.com/ezhilsivaraj/docket/compare/v1.2.2...HEAD
-[1.2.2]: https://github.com/ezhilsivaraj/docket/releases/tag/v1.2.2
-[1.2.1]: https://github.com/ezhilsivaraj/docket/releases/tag/v1.2.1
-[1.2.0]: https://github.com/ezhilsivaraj/docket/releases/tag/v1.2.0
-[1.1.0]: https://github.com/ezhilsivaraj/docket/releases/tag/v1.1.0
-[1.0.0]: https://github.com/ezhilsivaraj/docket/releases/tag/v1.0.0
+[Unreleased]: https://github.com/ezhil-003/docket/compare/v1.2.3...HEAD
+[1.2.3]: https://github.com/ezhil-003/docket/releases/tag/v1.2.3
+[1.2.2]: https://github.com/ezhil-003/docket/releases/tag/v1.2.2
+[1.2.1]: https://github.com/ezhil-003/docket/releases/tag/v1.2.1
+[1.2.0]: https://github.com/ezhil-003/docket/releases/tag/v1.2.0
+[1.1.0]: https://github.com/ezhil-003/docket/releases/tag/v1.1.0
+[1.0.0]: https://github.com/ezhil-003/docket/releases/tag/v1.0.0

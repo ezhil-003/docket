@@ -6,7 +6,7 @@
 
 set -Eeuo pipefail
 
-readonly DEFAULT_REPOSITORY="ezhilsivaraj/docket"
+readonly DEFAULT_REPOSITORY="ezhil-003/docket"
 repository="${DOCKET_REPOSITORY:-$DEFAULT_REPOSITORY}"
 version="${DOCKET_VERSION:-latest}"
 home_dir="${HOME:-}"

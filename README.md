@@ -51,13 +51,13 @@ Write in the terminal, open an existing document, or pipe Markdown from another 
 The installer detects your OS and CPU architecture, downloads the matching release binary, verifies its SHA-256 checksum, and installs atomically into `~/.local/bin`.
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/ezhilsivaraj/docket/main/scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/ezhil-003/docket/main/scripts/install.sh | bash
 ```
 
 To install a pinned release or use a custom install directory:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/ezhilsivaraj/docket/main/scripts/install.sh | bash -s -- --version v1.2.2 --dir "$HOME/.local/bin"
+curl -fsSL https://raw.githubusercontent.com/ezhil-003/docket/main/scripts/install.sh | bash -s -- --version v1.2.3 --dir "$HOME/.local/bin"
 ```
 
 The installer supports `linux-x64`, `darwin-x64`, and `darwin-arm64`. It fails closed when the release checksum is missing or invalid.
@@ -67,7 +67,7 @@ The installer supports `linux-x64`, `darwin-x64`, and `darwin-arm64`. It fails c
 Run the installer directly in PowerShell:
 
 ```powershell
-irm https://raw.githubusercontent.com/ezhilsivaraj/docket/main/scripts/install.ps1 | iex
+irm https://raw.githubusercontent.com/ezhil-003/docket/main/scripts/install.ps1 | iex
 ```
 
 The installer verifies SHA-256 checksums and adds Docket to your user PATH without requiring administrator privileges.
@@ -77,7 +77,7 @@ The installer verifies SHA-256 checksums and adds Docket to your user PATH witho
 If you prefer Bun to manage the CLI globally:
 
 ```bash
-bun install --global github:ezhilsivaraj/docket#main
+bun install --global github:ezhil-003/docket#main
 docket --help
 ```
 
@@ -86,7 +86,7 @@ The release-binary path is recommended for end users; Bun global mode is useful 
 ### Development setup
 
 ```bash
-git clone https://github.com/ezhilsivaraj/docket.git
+git clone https://github.com/ezhil-003/docket.git
 cd docket
 bun install --frozen-lockfile
 ```
