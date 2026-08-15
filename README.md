@@ -57,7 +57,7 @@ curl -fsSL https://raw.githubusercontent.com/ezhil-003/docket/main/scripts/insta
 To install a pinned release or use a custom install directory:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/ezhil-003/docket/main/scripts/install.sh | bash -s -- --version v1.2.3 --dir "$HOME/.local/bin"
+curl -fsSL https://raw.githubusercontent.com/ezhil-003/docket/main/scripts/install.sh | bash -s -- --version v1.2.4 --dir "$HOME/.local/bin"
 ```
 
 The installer supports `linux-x64`, `darwin-x64`, and `darwin-arm64`. It fails closed when the release checksum is missing or invalid.

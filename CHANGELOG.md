@@ -8,6 +8,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 No changes yet.
 
+## [1.2.4] — 2026-08-16
+
+### Fixed
+
+- Added `#!/usr/bin/env bun` shebang and executable permissions to CLI/TUI entry points so global `bun install` commands run `docket` without shell import syntax errors.
+
 ## [1.2.3] — 2026-08-16
 
 ### Fixed
@@ -66,7 +72,8 @@ No changes yet.
 - CLI conversion mode and OpenTUI interactive mode.
 - Margin-safe page layout and font-readiness guarantees.
 
-[Unreleased]: https://github.com/ezhil-003/docket/compare/v1.2.3...HEAD
+[Unreleased]: https://github.com/ezhil-003/docket/compare/v1.2.4...HEAD
+[1.2.4]: https://github.com/ezhil-003/docket/releases/tag/v1.2.4
 [1.2.3]: https://github.com/ezhil-003/docket/releases/tag/v1.2.3
 [1.2.2]: https://github.com/ezhil-003/docket/releases/tag/v1.2.2
 [1.2.1]: https://github.com/ezhil-003/docket/releases/tag/v1.2.1

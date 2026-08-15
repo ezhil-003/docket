@@ -1,3 +1,4 @@
+#!/usr/bin/env bun
 import path from "node:path";
 import { renderPdf, shutdownRenderer } from "./core/render";
 import { THEME_IDS, THEMES, isValidThemeId, type ThemeId } from "./core/themes";
