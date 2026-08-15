@@ -6,6 +6,16 @@
 
 ## Key Features
 
+- **Real-Time Markdown Editor Diagnostics**:
+  - Live linting on every keypress in the OpenTUI editor area.
+  - Displays line numbers, severities (🔴 Error vs ⚠️ Warning), rule IDs (`MD001` to `MD008`), and actionable fix hints.
+- **Pre-Conversion Safeguard Gate**:
+  - Automatically validates Markdown structure prior to PDF generation.
+  - Blocks conversion if critical syntax errors are present, preventing the creation of corrupted output files.
+  - Optional `--force` flag to bypass linting in CLI mode.
+- **Graceful Error Architecture & Orphan Process Traps**:
+  - Structured `DocketError` hierarchy (`MarkdownLintError`, `PuppeteerRenderError`, `FileAccessError`) with human-friendly user hints.
+  - Process signal traps (`process.on('SIGINT')`, `process.on('SIGTERM')`) to guarantee zero orphaned Chromium browser processes.
 - **Strict Margin Safety Contract**:
   - Zero outer `@page { margin: 0; }` prevents content from clipping under margins.
   - Safe internal container padding (`padding: 18mm 16mm 20mm 16mm`).
@@ -18,9 +28,6 @@
   - `legal`: Formal serif body (*Source Serif 4*) and traditional navy headers.
   - `boardroom`: Warm charcoal with amber & bronze accents.
   - `minimal`: Clean monochrome layout with restrained typography.
-- **Dual Input Interface**:
-  - Interactive OpenTUI terminal frontend (Text mode as default setup + File path mode switcher).
-  - Fast, non-interactive CLI for CI/CD automation & STDIN piping.
 
 ---
 
@@ -34,14 +41,14 @@ bun install
 
 ## Quick Usage
 
-### 1. Run Interactive OpenTUI App
+### 1. Run Interactive OpenTUI App with Live Editor Diagnostics
 ```bash
 bun run start
 # or
 bun run tui
 ```
 
-### 2. Run Non-Interactive CLI
+### 2. Run Non-Interactive CLI Engine
 ```bash
 # Convert a Markdown file
 bun run cli document.md -t modern -o report.pdf
@@ -50,7 +57,7 @@ bun run cli document.md -t modern -o report.pdf
 echo "# Hello Docket" | bun run cli --paste -t modern -o hello.pdf
 ```
 
-### 3. Run Test Suite (Vitest)
+### 3. Run Vitest Test Suite
 ```bash
 bun test
 ```
@@ -64,21 +71,12 @@ bun test
 | `-t, --theme <theme>` | Preset (`modern`, `executive`, `technical`, `legal`, `boardroom`, `minimal`) | `executive` |
 | `-o, --output <file>` | Destination output PDF path | `<input>.pdf` or `docket-output.pdf` |
 | `-p, --paste` | Read Markdown content from STDIN pipe | `false` |
+| `--force` | Bypass pre-conversion linting error gates | `false` |
 | `--dry-run <out.html>`| Export intermediate HTML document without browser render | `undefined` |
 | `-h, --help` | Display usage instructions | — |
 
 ---
 
-## Community & Governance
-
-- [AGENTS.md](AGENTS.md) – Guidelines & architecture rules for AI coding assistants.
-- [CONTRIBUTING.md](CONTRIBUTING.md) – Development setup and contribution guidelines.
-- [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) – Community standards & Contributor Covenant guidelines.
-- [SECURITY.md](SECURITY.md) – Security policy and vulnerability disclosure process.
-
----
-
 ## License
 
-Released under the [MIT License](LICENSE) © Docket.
-
+MIT © Docket
