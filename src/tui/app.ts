@@ -20,7 +20,7 @@ import type { DocketState } from "../core/contracts";
 import { getTuiLayout, shortenPath } from "./layout";
 import { TUI_THEME } from "./theme";
 
-const VERSION = process.env.npm_package_version ?? "1.2.0";
+const VERSION = process.env.npm_package_version ?? "1.2.1";
 const defaultSampleMarkdown = `# Executive Briefing
 
 > **Status**: Docket Markdown Engine Deployed

@@ -18,8 +18,8 @@ describe("PDF output target handling", () => {
   });
 
   it("adds the PDF extension and rejects directory-like filenames", () => {
-    expect(resolvePdfOutputPath("/tmp", "ahamed-store")).toBe("/tmp/ahamed-store.pdf");
+    const directory = path.join(os.tmpdir(), "docket-output-target");
+    expect(resolvePdfOutputPath(directory, "ahamed-store")).toBe(path.join(directory, "ahamed-store.pdf"));
     expect(() => resolvePdfOutputPath("/tmp", "nested/report.pdf")).toThrow("filename only");
   });
 });
-

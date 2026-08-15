@@ -60,7 +60,7 @@ bash /tmp/docket-install.sh
 For a pinned release or a custom install directory:
 
 ```bash
-bash /tmp/docket-install.sh --version v1.2.0 --dir "$HOME/.local/bin"
+bash /tmp/docket-install.sh --version v1.2.1 --dir "$HOME/.local/bin"
 ```
 
 The installer supports `linux-x64`, `darwin-x64`, and `darwin-arm64`. Linux ARM64 users can use the Bun global path until a native ARM64 release artifact is added. It fails closed when the release checksum is missing or invalid.
@@ -76,7 +76,7 @@ Invoke-WebRequest `
 & "$env:TEMP\docket-install.ps1"
 ```
 
-Use `-Version v1.2.0`, `-InstallDir C:\Tools\Docket`, or `-Force` when needed. The installer verifies SHA-256 and adds the user-level install directory to PATH without requiring administrator privileges.
+Use `-Version v1.2.1`, `-InstallDir C:\Tools\Docket`, or `-Force` when needed. The installer verifies SHA-256 and adds the user-level install directory to PATH without requiring administrator privileges.
 
 ### Bun global installation
 
@@ -109,7 +109,7 @@ cd docket
 bun install --frozen-lockfile
 ```
 
-Requirements: Bun 1.x and a Chromium-compatible environment for PDF generation. Dry-run HTML exports and the unit test suite do not require launching Chromium.
+Requirements: Bun 1.x, Node.js 24+ for release/tooling workflows, and a Chromium-compatible environment for PDF generation. Dry-run HTML exports and the unit test suite do not require launching Chromium.
 
 ## Quick Start
 

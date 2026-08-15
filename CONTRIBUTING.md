@@ -15,7 +15,7 @@ By participating in this project, you agree to abide by our [Code of Conduct](CO
 ### Prerequisites
 
 - [Bun](https://bun.sh) (v1.0 or later) installed on your system.
-- Node.js environment compatible with Chromium / Puppeteer.
+- Node.js 24 or later for the release/tooling environment.
 
 ### Setting Up Development Environment
 
