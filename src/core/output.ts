@@ -32,3 +32,20 @@ export async function normalizePdfOutputPath(outputPath: string, defaultFilename
   return resolvePdfOutputPath(directory, filename);
 }
 
+/** Extracts a clean PDF filename slug from the first Markdown heading or subheading. */
+export function derivePdfFilename(source: string, defaultName = "docket-output.pdf"): string {
+  if (!source) return defaultName;
+  const h1Match = source.match(/^#\s+(.+)$/m);
+  const target = h1Match?.[1] ?? source.match(/^##\s+(.+)$/m)?.[1];
+  if (!target) return defaultName;
+
+  const slug = target
+    .replace(/[#*`~_\[\]()!<>|]/g, "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 48);
+
+  return slug.length > 0 ? `${slug}.pdf` : defaultName;
+}

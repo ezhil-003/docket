@@ -8,6 +8,25 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 No changes yet.
 
+## [1.3.0] — 2026-08-19
+
+### Added
+
+- **Full-Screen Executive Editor Canvas**: Expanded interactive Markdown editor occupying full vertical height and 74% width with zero clipping.
+- **Real-Time Line Number Gutter & Diagnostics Signs**: Gutter line numbering with live error (`✖` in red) and warning (`▲` in yellow) markers mapped directly from markdownlint.
+- **VS Code-Grade Live Syntax Highlighting**: Real-time token highlighting in both the startup editor and the workspace editor for headings, code fences, blockquotes, lists, inline code, and links.
+- **Famous Developer Color Themes**: Multi-theme palette switching across VS Code Dark+, Catppuccin Mocha, One Dark, GitHub Dark, Dracula, and Tokyo Night, with matching editor background colors and token styles.
+- **Shiki PDF Code Highlighting**: Integrated Shiki v4 `dark-plus` syntax highlighting into `markdown-it` parsing for publication-ready code blocks in generated PDFs.
+- **Native macOS Finder File & Folder Pickers**: Seamless AppleScript-powered native dialogs for visual folder and `.md` file selection.
+- **Scrollable Control Sidebar**: Integrated `ScrollBoxRenderable` for mouse wheel, keyboard, and scrollbar navigation on secondary cards.
+- **Automatic Document Heading Slugs**: Auto-derives PDF output filenames from `# Heading` and `## Subheading` with manual override support.
+- **Interactive Clickable Buttons**: Centered button labels with keyboard shortcuts integrated directly on action buttons across the startup screen and footer bar.
+
+### Changed
+
+- Updated version across `package.json`, binary builds, and TUI startup badges to `1.3.0`.
+- Eliminated contrasting inner box border artifacts for a seamless elevated canvas.
+
 ## [1.2.5] — 2026-08-16
 
 ### Added

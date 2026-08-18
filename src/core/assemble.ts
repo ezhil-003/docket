@@ -1,4 +1,4 @@
-import { parseMarkdown } from "./parse";
+import { parseMarkdown, parseMarkdownAsync } from "./parse";
 import { loadThemeCss, loadThemeCssAsync, type ThemeId } from "./themes";
 
 function escapeHtml(str: string): string {
@@ -48,7 +48,7 @@ export async function assembleHtmlAsync(
   title = "Docket Document"
 ): Promise<string> {
   const [bodyHtml, css] = await Promise.all([
-    Promise.resolve(parseMarkdown(markdownSource)),
+    parseMarkdownAsync(markdownSource),
     loadThemeCssAsync(themeId),
   ]);
   return renderDocument(bodyHtml, css, title);

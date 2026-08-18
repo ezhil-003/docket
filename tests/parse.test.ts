@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseMarkdown } from "../src/core/parse";
+import { parseMarkdown, parseMarkdownAsync } from "../src/core/parse";
 
 describe("Markdown Parser (parse.ts)", () => {
   it("should handle empty or whitespace-only markdown source gracefully", () => {
@@ -27,11 +27,12 @@ describe("Markdown Parser (parse.ts)", () => {
     expect(html).toContain("<td>Val 1</td>");
   });
 
-  it("should parse code blocks and inline code", () => {
+  it("should parse code blocks and inline code with Shiki syntax highlighting", async () => {
     const md = "Use `bun run cli` or code block:\n\n```js\nconsole.log('hello');\n```";
-    const html = parseMarkdown(md);
+    const html = await parseMarkdownAsync(md);
     expect(html).toContain("<code>bun run cli</code>");
-    expect(html).toContain('<pre><code class="language-js">console.log(\'hello\');\n</code></pre>');
+    expect(html).toContain("shiki dark-plus");
+    expect(html).toContain("hello");
   });
 
   it("should preserve blockquotes and lists", () => {

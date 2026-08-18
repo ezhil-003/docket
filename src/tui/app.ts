@@ -2,9 +2,12 @@
 import {
   createCliRenderer,
   BoxRenderable,
+  ScrollBoxRenderable,
   TextRenderable,
   InputRenderable,
   TextareaRenderable,
+  LineNumberRenderable,
+  SyntaxStyle,
   TextAttributes,
   CliRenderEvents,
   type KeyEvent,
@@ -15,13 +18,14 @@ import { THEME_IDS, THEMES, type ThemeId } from "../core/themes";
 import { lintMarkdown, type LintResult } from "../core/lint";
 import { DocketError, formatDocketError } from "../core/errors";
 import { NodeFileSystem } from "../core/fs";
-import { resolvePdfOutputPath } from "../core/output";
+import { resolvePdfOutputPath, derivePdfFilename } from "../core/output";
+import { pickFolderNative, pickFileNative } from "../core/native-picker";
 import { initialTuiState, reduceTuiState, type TuiEvent } from "./state";
 import type { DocketState } from "../core/contracts";
 import { getTuiLayout, shortenPath } from "./layout";
-import { TUI_THEME } from "./theme";
+import { TUI_THEME, THEME_PALETTES, getTuiTheme, createSyntaxStyle, type TuiColorPalette } from "./theme";
 
-const VERSION = process.env.npm_package_version ?? "1.2.1";
+const VERSION = process.env.npm_package_version ?? "1.3.0";
 const defaultSampleMarkdown = `# Executive Briefing
 
 > **Status**: Docket Markdown Engine Deployed
@@ -46,9 +50,27 @@ function makeButton(renderer: Renderer, label: string, action: () => void): { bo
     width: "auto",
     height: 3,
     paddingX: 1,
+    alignItems: "center",
+    justifyContent: "center",
     borderStyle: "rounded",
     borderColor: TUI_THEME.border,
     focusedBorderColor: TUI_THEME.focus,
+    backgroundColor: TUI_THEME.panelElevated,
+    focusable: true,
+    onMouseDown: () => action(),
+    onKeyDown: (key: KeyEvent) => {
+      if (key.name === "enter" || key.name === "space") action();
+    },
+  });
+  box.add(text);
+  return { box, text };
+}
+
+function makeMiniButton(renderer: Renderer, label: string, action: () => void): { box: BoxRenderable; text: TextRenderable } {
+  const text = new TextRenderable(renderer, { content: label, fg: TUI_THEME.accent });
+  const box = new BoxRenderable(renderer, {
+    paddingX: 1,
+    height: 1,
     backgroundColor: TUI_THEME.panelElevated,
     focusable: true,
     onMouseDown: () => action(),
@@ -133,19 +155,34 @@ export async function runTuiApp(): Promise<void> {
     backgroundColor: TUI_THEME.panelElevated,
     focusedBackgroundColor: TUI_THEME.panelElevated,
     textColor: TUI_THEME.text,
+    syntaxStyle: createSyntaxStyle(getTuiTheme(state.themeId)),
     onContentChange: () => {
       if (!syncingEditor) dispatch({ type: "set-source", source: startupEditor.plainText });
+      applySyntaxHighlightsToEditor(startupEditor, getTuiTheme(state.themeId));
     },
   });
   startupEditorFrame.add(startupEditor);
   const startupActions = new BoxRenderable(renderer, { flexDirection: "row", flexWrap: "wrap", gap: 1, width: "100%" });
-  const startButton = makeButton(renderer, " Start Workspace ", () => startWorkspace("text"));
-  const openButton = makeButton(renderer, " Open File ", () => startWorkspace("file"));
-  const quitStartupButton = makeButton(renderer, " Quit ", () => renderer.destroy());
+  const startButton = makeButton(renderer, " ⚡ Start (Ctrl+Enter) ", () => startWorkspace("text"));
+  const openButton = makeButton(renderer, " 📁 Open File (Ctrl+O) ", async () => {
+    if (process.platform === "darwin") {
+      const file = await pickFileNative();
+      if (file) {
+        startWorkspace("file");
+        filePath.value = file;
+        dispatch({ type: "set-input-path", path: file });
+        void loadFile();
+        return;
+      }
+    }
+    startWorkspace("file");
+  });
+  const startupThemeButton = makeButton(renderer, ` 🎨 ${THEME_PALETTES[state.themeId].name} `, () => cycleTheme());
+  const quitStartupButton = makeButton(renderer, " ✕ Quit (Esc) ", () => renderer.destroy());
   startupActions.add(startButton.box);
   startupActions.add(openButton.box);
+  startupActions.add(startupThemeButton.box);
   startupActions.add(quitStartupButton.box);
-  const startupHints = new TextRenderable(renderer, { content: "Ctrl+Enter Start   Ctrl+O Open File   Esc Quit", fg: TUI_THEME.dim });
   const startupMeta = new BoxRenderable(renderer, { flexDirection: "row", justifyContent: "space-between", width: "100%" });
   const startupVersion = new TextRenderable(renderer, { content: `v${VERSION}`, fg: TUI_THEME.dim });
   const startupCwd = new TextRenderable(renderer, { content: shortenPath(process.cwd(), 54), fg: TUI_THEME.dim });
@@ -157,7 +194,6 @@ export async function runTuiApp(): Promise<void> {
   startupPanel.add(startupLabel);
   startupPanel.add(startupEditorFrame);
   startupPanel.add(startupActions);
-  startupPanel.add(startupHints);
   startupPanel.add(startupMeta);
   startupScreen.add(startupPanel);
 
@@ -167,146 +203,337 @@ export async function runTuiApp(): Promise<void> {
     width: "100%",
     height: "100%",
     gap: 1,
-    overflow: "scroll",
     visible: false,
   });
+
   const header = new BoxRenderable(renderer, {
     flexDirection: "row",
     justifyContent: "space-between",
-    width: "100%",
-    height: 3,
-    paddingX: 1,
-    paddingY: 1,
-    backgroundColor: TUI_THEME.panel,
-  });
-  const headerTitle = new TextRenderable(renderer, { content: " DOCKET  •  Markdown workspace", fg: TUI_THEME.text, attributes: TextAttributes.BOLD });
-  const headerStatus = new TextRenderable(renderer, { content: "● Ready", fg: TUI_THEME.success });
-  header.add(headerTitle);
-  header.add(headerStatus);
-
-  const main = new BoxRenderable(renderer, { flexDirection: "row", width: "100%", flexGrow: 1, gap: 1 });
-  const editorPanel = new BoxRenderable(renderer, {
-    flexDirection: "column",
-    width: "68%",
-    minWidth: 0,
-    gap: 1,
-    padding: 2,
-    backgroundColor: TUI_THEME.panel,
-  });
-  const documentTitle = new TextRenderable(renderer, { content: "Markdown document loaded", fg: TUI_THEME.accent, attributes: TextAttributes.BOLD });
-  const documentMeta = new TextRenderable(renderer, { content: "Text mode  •  Edit directly in this panel", fg: TUI_THEME.dim });
-  const filePath = new InputRenderable(renderer, { placeholder: "Markdown file path", value: state.inputPath, width: "100%", visible: false });
-  const outputDirectory = new InputRenderable(renderer, { placeholder: "Output folder", value: state.outputDirectory, width: "100%" });
-  const outputFilename = new InputRenderable(renderer, { placeholder: "PDF filename", value: state.outputFilename, width: "100%" });
-  const resolvedOutput = new TextRenderable(renderer, { content: "Will save to: (enter a PDF filename)", fg: TUI_THEME.dim });
-  const editorFrame = new BoxRenderable(renderer, {
-    flexDirection: "column",
-    width: "100%",
-    flexGrow: 1,
-    minHeight: 8,
-    padding: 1,
-    border: ["left"],
-    borderColor: TUI_THEME.focus,
-    backgroundColor: TUI_THEME.panelElevated,
-  });
-  const editor = new TextareaRenderable(renderer, {
-    placeholder: "Type or edit Markdown…",
-    initialValue: state.source,
-    width: "100%",
-    height: "auto",
-    flexGrow: 1,
-    wrapMode: "word",
-    backgroundColor: TUI_THEME.panelElevated,
-    padding: 1,
-    focusedBackgroundColor: TUI_THEME.panelElevated,
-    textColor: TUI_THEME.text,
-    onContentChange: () => {
-      if (!syncingEditor) dispatch({ type: "set-source", source: editor.plainText });
-      scheduleLint();
-    },
-  });
-  editorFrame.add(editor);
-  const outputSettings = new BoxRenderable(renderer, { flexDirection: "row", width: "100%", gap: 1 });
-  const outputDirectoryGroup = new BoxRenderable(renderer, { flexDirection: "column", width: "58%", gap: 1 });
-  const outputFilenameGroup = new BoxRenderable(renderer, { flexDirection: "column", width: "42%", gap: 1 });
-  outputDirectoryGroup.add(new TextRenderable(renderer, { content: "Output folder", fg: TUI_THEME.muted }));
-  outputDirectoryGroup.add(outputDirectory);
-  outputFilenameGroup.add(new TextRenderable(renderer, { content: "PDF filename", fg: TUI_THEME.muted }));
-  outputFilenameGroup.add(outputFilename);
-  outputSettings.add(outputDirectoryGroup);
-  outputSettings.add(outputFilenameGroup);
-  editorPanel.add(documentTitle);
-  editorPanel.add(documentMeta);
-  editorPanel.add(filePath);
-  editorPanel.add(editorFrame);
-  editorPanel.add(outputSettings);
-  editorPanel.add(resolvedOutput);
-
-  const diagnosticsPanel = new BoxRenderable(renderer, {
-    flexDirection: "column",
-    width: "32%",
-    minWidth: 0,
-    gap: 1,
-    padding: 1,
-    backgroundColor: TUI_THEME.panel,
-  });
-  const diagnosticsBox = new BoxRenderable(renderer, {
-    flexDirection: "column",
-    height: "38%",
-    minHeight: 5,
-    padding: 2,
-    backgroundColor: TUI_THEME.panel,
-  });
-  const diagnosticsTitle = new TextRenderable(renderer, { content: "DIAGNOSTICS", fg: TUI_THEME.muted, attributes: TextAttributes.BOLD });
-  const diagnostics = new TextRenderable(renderer, { content: "🟢 Clean\n0 errors · 0 warnings\n\nNo issues detected.", fg: TUI_THEME.success });
-  diagnosticsBox.add(diagnosticsTitle);
-  diagnosticsBox.add(diagnostics);
-  const messagesBox = new BoxRenderable(renderer, {
-    flexDirection: "column",
-    flexGrow: 1,
-    minHeight: 5,
-    padding: 2,
-    backgroundColor: TUI_THEME.panel,
-  });
-  const messagesTitle = new TextRenderable(renderer, { content: "MESSAGES", fg: TUI_THEME.muted, attributes: TextAttributes.BOLD });
-  const messages = new TextRenderable(renderer, { content: "Workspace ready", fg: TUI_THEME.text });
-  messagesBox.add(messagesTitle);
-  messagesBox.add(messages);
-  diagnosticsPanel.add(diagnosticsBox);
-  diagnosticsPanel.add(messagesBox);
-  main.add(editorPanel);
-  main.add(diagnosticsPanel);
-
-  const actionBar = new BoxRenderable(renderer, { flexDirection: "row", flexWrap: "wrap", gap: 1, width: "100%", height: 3, flexShrink: 0 });
-  const generateButton = makeButton(renderer, " Generate PDF ", () => void generatePdf());
-  const themeButton = makeButton(renderer, ` Theme: ${THEMES[state.themeId].name} `, () => cycleTheme());
-  const fileButton = makeButton(renderer, " File ", () => { dispatch({ type: "set-mode", mode: "file" }); filePath.focus(); });
-  const diagnosticsButton = makeButton(renderer, " Diagnostics ", () => dispatch({ type: "toggle-diagnostics" }));
-  const cancelButton = makeButton(renderer, " Cancel ", () => renderAbortController?.abort());
-  actionBar.add(generateButton.box);
-  actionBar.add(themeButton.box);
-  actionBar.add(fileButton.box);
-  actionBar.add(diagnosticsButton.box);
-  actionBar.add(cancelButton.box);
-
-  const statusBox = new BoxRenderable(renderer, {
-    flexDirection: "row",
     alignItems: "center",
     width: "100%",
     height: 1,
     paddingX: 1,
     flexShrink: 0,
+    backgroundColor: TUI_THEME.panel,
   });
-  const statusLabel = new TextRenderable(renderer, { content: "Status: ", fg: TUI_THEME.muted, attributes: TextAttributes.BOLD });
-  const status = new TextRenderable(renderer, { content: "Ready", fg: TUI_THEME.success });
-  statusBox.add(statusLabel);
-  statusBox.add(status);
+  const headerTitle = new TextRenderable(renderer, {
+    content: "▛▀ DOCKET  •  Executive Markdown Workspace [Editor Mode]",
+    fg: TUI_THEME.text,
+    attributes: TextAttributes.BOLD,
+  });
+  const headerStatus = new TextRenderable(renderer, { content: "● Ready", fg: TUI_THEME.success });
+  header.add(headerTitle);
+  header.add(headerStatus);
 
-  const footer = new TextRenderable(renderer, { content: "Ctrl+Enter Generate   Esc Interrupt   Tab Navigate   Ctrl+Q Quit", fg: TUI_THEME.dim });
+  const main = new BoxRenderable(renderer, {
+    flexDirection: "row",
+    width: "100%",
+    height: "100%",
+    flexGrow: 1,
+    gap: 1,
+  });
+
+  // Left Column: Maximized Editor Panel (74% width, 100% height)
+  const editorPanel = new BoxRenderable(renderer, {
+    flexDirection: "column",
+    width: "74%",
+    height: "100%",
+    minWidth: 0,
+    padding: 0,
+    backgroundColor: TUI_THEME.panelElevated,
+  });
+
+  const editorFrame = new BoxRenderable(renderer, {
+    flexDirection: "row",
+    width: "100%",
+    height: "100%",
+    flexGrow: 1,
+    border: ["left"],
+    borderColor: TUI_THEME.focus,
+    backgroundColor: TUI_THEME.panelElevated,
+  });
+
+  const markdownSyntaxStyle = SyntaxStyle.fromStyles({
+    "heading": { fg: "#4ec9b0", bold: true },
+    "string": { fg: "#ce9178" },
+    "code": { fg: "#9cdcfe" },
+    "keyword": { fg: "#569cd6", bold: true },
+    "comment": { fg: "#6a9955", italic: true },
+    "list": { fg: "#dcdcaa" },
+    "quote": { fg: "#c586c0", italic: true },
+    "link": { fg: "#569cd6", underline: true },
+  });
+
+  let userEditedFilename = false;
+
+  const editor = new TextareaRenderable(renderer, {
+    placeholder: "Type or paste Markdown here…",
+    initialValue: state.source,
+    width: "100%",
+    height: "100%",
+    flexGrow: 1,
+    wrapMode: "word",
+    backgroundColor: TUI_THEME.panelElevated,
+    focusedBackgroundColor: TUI_THEME.panelElevated,
+    textColor: TUI_THEME.text,
+    syntaxStyle: markdownSyntaxStyle,
+    onContentChange: () => {
+      if (!syncingEditor) {
+        const text = editor.plainText;
+        dispatch({ type: "set-source", source: text });
+        if (!userEditedFilename) {
+          const autoName = derivePdfFilename(text);
+          dispatch({ type: "set-output-filename", filename: autoName });
+          outputFilename.value = autoName;
+        }
+      }
+      applySyntaxHighlights();
+      scheduleLint();
+    },
+  });
+
+  const lineNumberGutter = new LineNumberRenderable(renderer, {
+    target: editor,
+    fg: TUI_THEME.dim,
+    bg: TUI_THEME.panelElevated,
+    width: "100%",
+    height: "100%",
+    flexGrow: 1,
+    minWidth: 3,
+    paddingRight: 1,
+  });
+  lineNumberGutter.add(editor);
+  editorFrame.add(lineNumberGutter);
+  editorPanel.add(editorFrame);
+
+  // Right Column: Scrollable Control Sidebar (26% width)
+  const sidebarPanel = new ScrollBoxRenderable(renderer, {
+    width: "26%",
+    height: "100%",
+    minWidth: 0,
+    gap: 1,
+  });
+
+  // 1. Primary Actions Card
+  const actionsCard = new BoxRenderable(renderer, {
+    flexDirection: "column",
+    width: "100%",
+    gap: 1,
+    padding: 1,
+    flexShrink: 0,
+    backgroundColor: TUI_THEME.panel,
+  });
+  const generateButton = makeButton(renderer, " Generate PDF ", () => void generatePdf());
+  generateButton.box.width = "100%";
+  const subActionsRow = new BoxRenderable(renderer, { flexDirection: "row", width: "100%", gap: 1, flexShrink: 0 });
+  const themeButton = makeButton(renderer, ` ${THEMES[state.themeId].name.split(" ")[0]} `, () => cycleTheme());
+  themeButton.box.width = "56%";
+  themeButton.box.flexShrink = 0;
+  const modeButton = makeButton(renderer, state.mode === "text" ? " Editor " : " File ", () => toggleMode());
+  modeButton.box.width = "42%";
+  modeButton.box.flexShrink = 0;
+  subActionsRow.add(themeButton.box);
+  subActionsRow.add(modeButton.box);
+  const cancelButton = makeButton(renderer, " Cancel Render ", () => renderAbortController?.abort());
+  cancelButton.box.width = "100%";
+  cancelButton.box.visible = false;
+  actionsCard.add(generateButton.box);
+  actionsCard.add(subActionsRow);
+  actionsCard.add(cancelButton.box);
+
+  // 2. Output Settings Card
+  const outputCard = new BoxRenderable(renderer, {
+    flexDirection: "column",
+    width: "100%",
+    gap: 1,
+    padding: 1,
+    flexShrink: 0,
+    backgroundColor: TUI_THEME.panel,
+  });
+  const outputCardTitle = new TextRenderable(renderer, { content: "OUTPUT TARGET", fg: TUI_THEME.muted, attributes: TextAttributes.BOLD });
+
+  const filePath = new InputRenderable(renderer, {
+    placeholder: "File (e.g. ./docs/report.md)",
+    value: state.inputPath,
+    width: "100%",
+    backgroundColor: TUI_THEME.panelElevated,
+    focusedBackgroundColor: TUI_THEME.panelElevated,
+    textColor: TUI_THEME.text,
+  });
+  const filePathFrame = new BoxRenderable(renderer, {
+    width: "100%",
+    height: 3,
+    paddingX: 1,
+    borderStyle: "rounded",
+    borderColor: TUI_THEME.border,
+    focusedBorderColor: TUI_THEME.focus,
+    backgroundColor: TUI_THEME.panelElevated,
+  });
+  filePathFrame.add(filePath);
+
+  const filePathHeader = new BoxRenderable(renderer, { flexDirection: "row", justifyContent: "space-between", alignItems: "center", width: "100%" });
+  filePathHeader.add(new TextRenderable(renderer, { content: "Source File", fg: TUI_THEME.muted }));
+  const btnBrowseFile = makeMiniButton(renderer, " 🔍 Choose… ", async () => {
+    const file = await pickFileNative();
+    if (file) {
+      filePath.value = file;
+      dispatch({ type: "set-input-path", path: file });
+      void loadFile();
+    }
+  });
+  filePathHeader.add(btnBrowseFile.box);
+
+  const filePathGroup = new BoxRenderable(renderer, { flexDirection: "column", width: "100%", gap: 0, visible: state.mode === "file" });
+  filePathGroup.add(filePathHeader);
+  filePathGroup.add(filePathFrame);
+
+  function setFolderPreset(dir: string): void {
+    outputDirectory.value = dir;
+    dispatch({ type: "set-output-directory", path: dir });
+  }
+
+  const outputDirectory = new InputRenderable(renderer, {
+    placeholder: "Folder (e.g. . or ./dist)",
+    value: state.outputDirectory,
+    width: "100%",
+    backgroundColor: TUI_THEME.panelElevated,
+    focusedBackgroundColor: TUI_THEME.panelElevated,
+    textColor: TUI_THEME.text,
+  });
+  const outputDirectoryFrame = new BoxRenderable(renderer, {
+    width: "100%",
+    height: 3,
+    paddingX: 1,
+    borderStyle: "rounded",
+    borderColor: TUI_THEME.border,
+    focusedBorderColor: TUI_THEME.focus,
+    backgroundColor: TUI_THEME.panelElevated,
+  });
+  outputDirectoryFrame.add(outputDirectory);
+
+  const outputDirGroup = new BoxRenderable(renderer, { flexDirection: "column", width: "100%", gap: 1, flexShrink: 0 });
+  const outputDirHeader = new BoxRenderable(renderer, { flexDirection: "row", justifyContent: "space-between", alignItems: "center", width: "100%" });
+  outputDirHeader.add(new TextRenderable(renderer, { content: "Folder", fg: TUI_THEME.muted }));
+  const btnBrowseFolder = makeMiniButton(renderer, " 🔍 Choose… ", async () => {
+    const folder = await pickFolderNative();
+    if (folder) {
+      outputDirectory.value = folder;
+      dispatch({ type: "set-output-directory", path: folder });
+      addMessage(`Selected folder: ${shortenPath(folder, 48)}`);
+    }
+  });
+  outputDirHeader.add(btnBrowseFolder.box);
+
+  const folderPresetsRow = new BoxRenderable(renderer, { flexDirection: "row", gap: 1, width: "100%", flexWrap: "wrap" });
+  const presetCwd = makeMiniButton(renderer, " . ", () => setFolderPreset("."));
+  const presetDownloads = makeMiniButton(renderer, " ~/Downloads ", () => setFolderPreset("~/Downloads"));
+  const presetDocs = makeMiniButton(renderer, " ~/Docs ", () => setFolderPreset("~/Documents"));
+  const presetDist = makeMiniButton(renderer, " ./dist ", () => setFolderPreset("./dist"));
+  folderPresetsRow.add(presetCwd.box);
+  folderPresetsRow.add(presetDownloads.box);
+  folderPresetsRow.add(presetDocs.box);
+  folderPresetsRow.add(presetDist.box);
+
+  outputDirGroup.add(outputDirHeader);
+  outputDirGroup.add(outputDirectoryFrame);
+  outputDirGroup.add(folderPresetsRow);
+
+  const outputFilename = new InputRenderable(renderer, {
+    placeholder: "File (e.g. report.pdf)",
+    value: state.outputFilename,
+    width: "100%",
+    backgroundColor: TUI_THEME.panelElevated,
+    focusedBackgroundColor: TUI_THEME.panelElevated,
+    textColor: TUI_THEME.text,
+  });
+  const outputFilenameFrame = new BoxRenderable(renderer, {
+    width: "100%",
+    height: 3,
+    paddingX: 1,
+    borderStyle: "rounded",
+    borderColor: TUI_THEME.border,
+    focusedBorderColor: TUI_THEME.focus,
+    backgroundColor: TUI_THEME.panelElevated,
+  });
+  outputFilenameFrame.add(outputFilename);
+
+  const outputFilenameGroup = new BoxRenderable(renderer, { flexDirection: "column", width: "100%", gap: 0 });
+  outputFilenameGroup.add(new TextRenderable(renderer, { content: "PDF Filename", fg: TUI_THEME.muted }));
+  outputFilenameGroup.add(outputFilenameFrame);
+
+  const resolvedOutput = new TextRenderable(renderer, {
+    content: `Save target: ${resolvePdfOutputPath(state.outputDirectory, state.outputFilename)}`,
+    fg: TUI_THEME.dim,
+  });
+
+  outputCard.add(outputCardTitle);
+  outputCard.add(filePathGroup);
+  outputCard.add(outputDirGroup);
+  outputCard.add(outputFilenameGroup);
+  outputCard.add(resolvedOutput);
+
+  // 3. Diagnostics Card (Zero text bleeding)
+  const diagnosticsCard = new BoxRenderable(renderer, {
+    flexDirection: "column",
+    width: "100%",
+    minHeight: 5,
+    padding: 1,
+    flexShrink: 0,
+    backgroundColor: TUI_THEME.panel,
+  });
+  const diagnosticsTitle = new TextRenderable(renderer, { content: "DIAGNOSTICS", fg: TUI_THEME.muted, attributes: TextAttributes.BOLD });
+  const diagnostics = new TextRenderable(renderer, { content: "● Clean\n0 errors • 0 warnings\n\nNo issues detected.", fg: TUI_THEME.success });
+  diagnosticsCard.add(diagnosticsTitle);
+  diagnosticsCard.add(diagnostics);
+
+  // 4. Activity Messages Card
+  const messagesCard = new BoxRenderable(renderer, {
+    flexDirection: "column",
+    width: "100%",
+    flexGrow: 1,
+    minHeight: 4,
+    padding: 1,
+    backgroundColor: TUI_THEME.panel,
+  });
+  const messagesTitle = new TextRenderable(renderer, { content: "ACTIVITY LOG", fg: TUI_THEME.muted, attributes: TextAttributes.BOLD });
+  const messages = new TextRenderable(renderer, { content: "Workspace ready", fg: TUI_THEME.text });
+  messagesCard.add(messagesTitle);
+  messagesCard.add(messages);
+
+  sidebarPanel.add(actionsCard);
+  sidebarPanel.add(outputCard);
+  sidebarPanel.add(diagnosticsCard);
+  sidebarPanel.add(messagesCard);
+
+  main.add(editorPanel);
+  main.add(sidebarPanel);
+
+  const footer = new BoxRenderable(renderer, {
+    flexDirection: "row",
+    gap: 1,
+    width: "100%",
+    height: 1,
+    flexShrink: 0,
+    flexWrap: "wrap",
+  });
+  const btnGenerate = makeMiniButton(renderer, "⚡ Generate (Ctrl+Enter)", () => void generatePdf());
+  const btnOpenFile = makeMiniButton(renderer, "📁 Open File (Ctrl+O)", () => {
+    dispatch({ type: "set-mode", mode: "file" });
+    filePath.focus();
+  });
+  const btnTheme = makeMiniButton(renderer, "🎨 Theme", () => cycleTheme());
+  const btnMode = makeMiniButton(renderer, "✏ Mode", () => toggleMode());
+  const btnQuit = makeMiniButton(renderer, "✕ Quit (Ctrl+Q)", () => {
+    renderer.destroy();
+    void shutdownRenderer();
+  });
+  footer.add(btnGenerate.box);
+  footer.add(btnOpenFile.box);
+  footer.add(btnTheme.box);
+  footer.add(btnMode.box);
+  footer.add(btnQuit.box);
   workspaceScreen.add(header);
   workspaceScreen.add(main);
-  workspaceScreen.add(actionBar);
-  workspaceScreen.add(statusBox);
   workspaceScreen.add(footer);
 
   root.add(startupScreen);
@@ -319,25 +546,35 @@ export async function runTuiApp(): Promise<void> {
   }
 
   function updateDiagnostics(result: LintResult): void {
+    lineNumberGutter.clearAllLineColors();
+    lineNumberGutter.clearAllLineSigns();
+
+    for (const err of result.errors) {
+      lineNumberGutter.setLineColor(err.line, { gutter: TUI_THEME.error });
+      lineNumberGutter.setLineSign(err.line, { before: "✖ ", beforeColor: TUI_THEME.error });
+    }
+    for (const warn of result.warnings) {
+      if (!result.errors.some((e) => e.line === warn.line)) {
+        lineNumberGutter.setLineColor(warn.line, { gutter: TUI_THEME.warning });
+        lineNumberGutter.setLineSign(warn.line, { before: "▲ ", beforeColor: TUI_THEME.warning });
+      }
+    }
+
     const first = result.errors[0] ?? result.warnings[0];
     if (!first) {
-      diagnostics.content = "🟢 Clean\n0 errors · 0 warnings\n\nNo issues detected.";
+      diagnostics.content = "● Clean\n0 errors • 0 warnings\n\nNo issues detected.";
       diagnostics.fg = TUI_THEME.success;
       return;
     }
-    diagnostics.content = `${first.severity === "error" ? "🔴" : "⚠️"} ${result.errors.length} errors · ${result.warnings.length} warnings\n\n${first.ruleId} · Line ${first.line}\n${first.message}\n\nHint: ${first.suggestion ?? "Review this section."}`;
+    diagnostics.content = `${first.severity === "error" ? "■" : "▲"} ${result.errors.length} error(s) • ${result.warnings.length} warning(s)\n\n${first.ruleId} • Line ${first.line}\n${first.message}\n\nHint: ${first.suggestion ?? "Review this section."}`;
     diagnostics.fg = first.severity === "error" ? TUI_THEME.error : TUI_THEME.warning;
   }
 
   function updateLayout(): void {
     const layout = getTuiLayout(renderer.width, renderer.height);
     main.flexDirection = layout.sidebar ? "row" : "column";
-    editorPanel.width = layout.sidebar ? "68%" : "100%";
-    diagnosticsPanel.width = layout.sidebar ? "32%" : "100%";
-    diagnosticsPanel.visible = layout.sidebar || state.diagnosticsVisible;
-    diagnosticsBox.height = layout.sidebar ? layout.diagnosticsHeight : 8;
-    diagnosticsButton.box.visible = !layout.sidebar;
-    editor.height = layout.editorHeight;
+    editorPanel.width = layout.sidebar ? "74%" : "100%";
+    sidebarPanel.width = layout.sidebar ? "26%" : "100%";
     startupPanel.width = layout.compact ? "98%" : "92%";
     startupDescription.visible = !layout.compact;
     logoSubtitle.visible = !layout.compact;
@@ -346,30 +583,29 @@ export async function runTuiApp(): Promise<void> {
       : "▛▀▖▞▀▖▞▀▖▌ ▌▛▀▘▀▛▘\n▌ ▌▌ ▌▌  ▙▞ ▙▄  ▌ \n▌ ▌▌ ▌▌ ▖▌▝▖▌   ▌ \n▀▀ ▝▀ ▝▀ ▘ ▘▀▀▘ ▘ ";
     startupEditorFrame.height = layout.compact ? 7 : 9;
     startupEditor.height = "100%";
-    startupHints.content = layout.compact ? "Ctrl+Enter Start   Ctrl+O File   Esc Quit" : "Ctrl+Enter Start   Ctrl+O Open File   Esc Quit";
-    startupCwd.content = shortenPath(process.cwd(), layout.compact ? 28 : 54);
-    generateButton.text.content = layout.compact ? " Generate " : " Generate PDF ";
-    themeButton.text.content = layout.compact ? ` ${THEMES[state.themeId].name} ` : ` Theme: ${THEMES[state.themeId].name} `;
-    diagnosticsButton.text.content = layout.compact ? " Diagnostics " : " Diagnostics ";
-    cancelButton.text.content = layout.compact ? " Cancel " : " Cancel ";
-    footer.content = layout.compact ? "Ctrl+Enter Generate   Esc Interrupt   Ctrl+D Diagnostics   Ctrl+Q Quit" : "Ctrl+Enter Generate   Esc Interrupt   Tab Navigate   Ctrl+Q Quit";
+    generateButton.text.content = " Generate PDF ";
+    themeButton.text.content = ` ${THEMES[state.themeId].name.split(" ")[0]} `;
+    modeButton.text.content = state.mode === "text" ? " Editor " : " File ";
   }
 
   function dispatch(event: TuiEvent): DocketState {
     state = reduceTuiState(state, event);
     startupScreen.visible = state.screen === "startup";
     workspaceScreen.visible = state.screen === "workspace";
-    filePath.visible = state.screen === "workspace" && state.mode === "file";
+    filePathGroup.visible = state.screen === "workspace" && state.mode === "file";
+    headerTitle.content = `DOCKET  •  ${state.mode === "file" ? "File Mode" : "Editor Mode"}  •  ${state.outputFilename}`;
     headerStatus.content = state.renderStatus === "rendering" ? "◌ Rendering" : state.renderStatus === "error" ? "✕ Error" : state.renderStatus === "success" ? "✓ Complete" : "● Ready";
     headerStatus.fg = state.renderStatus === "error" ? TUI_THEME.error : state.renderStatus === "rendering" ? TUI_THEME.accent : TUI_THEME.success;
-    documentMeta.content = `${state.mode === "file" ? "File mode" : "Text mode"}  •  Edit directly in this panel`;
+    modeButton.text.content = state.mode === "text" ? " Editor " : " File ";
     cancelButton.box.visible = state.renderStatus === "rendering";
     if (event.type === "set-output-directory" || event.type === "set-output-filename") {
       try {
-        resolvedOutput.content = `Will save to: ${resolvePdfOutputPath(state.outputDirectory, state.outputFilename)}`;
+        const fullPath = resolvePdfOutputPath(state.outputDirectory, state.outputFilename);
+        resolvedOutput.content = `Save target: ${fullPath}`;
         resolvedOutput.fg = TUI_THEME.dim;
       } catch (error) {
-        resolvedOutput.content = formatDocketError(error);
+        const message = error instanceof DocketError ? error.message : "Invalid output path or filename.";
+        resolvedOutput.content = `⚠ ${message}`;
         resolvedOutput.fg = TUI_THEME.error;
       }
     }
@@ -377,18 +613,144 @@ export async function runTuiApp(): Promise<void> {
     return state;
   }
 
-  function startWorkspace(mode: "text" | "file"): void {
-    if (mode === "text") {
-      state = dispatch({ type: "set-source", source: startupEditor.plainText });
-      syncingEditor = true;
-      editor.setText(startupEditor.plainText);
-      syncingEditor = false;
+  function toggleMode(): void {
+    const nextMode = state.mode === "text" ? "file" : "text";
+    dispatch({ type: "set-mode", mode: nextMode });
+    if (nextMode === "file") {
+      filePath.focus();
+      addMessage("Switched to File mode — enter path or press Enter to load");
+    } else {
+      editor.focus();
+      addMessage("Switched to Editor mode — edit directly in panel");
     }
+    scheduleLint();
+  }
+
+  function applySyntaxHighlightsToEditor(targetEditor: TextareaRenderable, palette: TuiColorPalette): void {
+    try {
+      const style = createSyntaxStyle(palette);
+      targetEditor.syntaxStyle = style;
+      targetEditor.clearAllHighlights();
+
+      const headingId = style.resolveStyleId("heading") ?? 1;
+      const quoteId = style.resolveStyleId("quote") ?? 1;
+      const listId = style.resolveStyleId("list") ?? 1;
+      const codeId = style.resolveStyleId("code") ?? 1;
+      const keywordId = style.resolveStyleId("keyword") ?? 1;
+      const stringId = style.resolveStyleId("string") ?? 1;
+
+      const text = targetEditor.plainText || "";
+      const lines = text.split("\n");
+      let inCodeBlock = false;
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i]!;
+        const trimmed = line.trimStart();
+
+        // Code fence
+        if (trimmed.startsWith("```")) {
+          targetEditor.addHighlight(i, { start: 0, end: line.length, styleId: keywordId });
+          inCodeBlock = !inCodeBlock;
+          continue;
+        }
+
+        if (inCodeBlock) {
+          targetEditor.addHighlight(i, { start: 0, end: line.length, styleId: codeId });
+          continue;
+        }
+
+        // Heading (#, ##, ###)
+        if (/^#{1,6}\s+/.test(trimmed)) {
+          targetEditor.addHighlight(i, { start: 0, end: line.length, styleId: headingId });
+          continue;
+        }
+
+        // Blockquote (> Quote)
+        if (trimmed.startsWith(">")) {
+          targetEditor.addHighlight(i, { start: 0, end: line.length, styleId: quoteId });
+          continue;
+        }
+
+        // List item bullet
+        if (/^([-*+]|\d+\.)\s+/.test(trimmed)) {
+          const match = trimmed.match(/^([-*+]|\d+\.)\s+/);
+          const bulletLen = match ? match[0].length : 2;
+          const indent = line.length - trimmed.length;
+          targetEditor.addHighlight(i, { start: indent, end: indent + bulletLen, styleId: listId });
+        }
+
+        // Table headers or horizontal rules
+        if (/^(\|?[\s-:]+\|[\s-:]+\|?|---)$/.test(trimmed)) {
+          targetEditor.addHighlight(i, { start: 0, end: line.length, styleId: keywordId });
+        }
+
+        // Inline code `code`
+        let codeMatch: RegExpExecArray | null;
+        const codeRegex = /`([^`]+)`/g;
+        while ((codeMatch = codeRegex.exec(line)) !== null) {
+          targetEditor.addHighlight(i, {
+            start: codeMatch.index,
+            end: codeMatch.index + codeMatch[0].length,
+            styleId: codeId,
+          });
+        }
+
+        // Markdown Links [text](url)
+        let linkMatch: RegExpExecArray | null;
+        const linkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
+        while ((linkMatch = linkRegex.exec(line)) !== null) {
+          targetEditor.addHighlight(i, {
+            start: linkMatch.index,
+            end: linkMatch.index + linkMatch[0].length,
+            styleId: stringId,
+          });
+        }
+      }
+    } catch {
+      // Ignore if editor is not yet mounted
+    }
+  }
+
+  function applyCurrentThemeColors(themeId: ThemeId): void {
+    const palette = getTuiTheme(themeId);
+    
+    startupEditor.backgroundColor = palette.panelElevated;
+    startupEditor.focusedBackgroundColor = palette.panelElevated;
+    startupEditor.textColor = palette.text;
+    
+    editor.backgroundColor = palette.panelElevated;
+    editor.focusedBackgroundColor = palette.panelElevated;
+    editor.textColor = palette.text;
+    editorPanel.backgroundColor = palette.panelElevated;
+    editorFrame.backgroundColor = palette.panelElevated;
+    editorFrame.borderColor = palette.focus;
+    lineNumberGutter.bg = palette.panelElevated;
+    lineNumberGutter.fg = palette.dim;
+
+    applySyntaxHighlightsToEditor(startupEditor, palette);
+    applySyntaxHighlightsToEditor(editor, palette);
+  }
+
+  function applySyntaxHighlights(): void {
+    applySyntaxHighlightsToEditor(editor, getTuiTheme(state.themeId));
+  }
+
+  function startWorkspace(mode: "text" | "file"): void {
+    const initialText = startupEditor.plainText || state.source;
+    state = dispatch({ type: "set-source", source: initialText });
+    syncingEditor = true;
+    editor.setText(initialText);
+    syncingEditor = false;
+    const initialFilename = derivePdfFilename(initialText);
+    userEditedFilename = false;
+    dispatch({ type: "set-output-filename", filename: initialFilename });
+    outputFilename.value = initialFilename;
     dispatch({ type: "set-mode", mode });
     dispatch({ type: "enter-workspace" });
-    addMessage(mode === "file" ? "Workspace opened — choose a Markdown file." : "Markdown document loaded");
+    addMessage(mode === "file" ? "Workspace opened — choose a Markdown file." : "Markdown document loaded into editor");
     if (mode === "file") filePath.focus();
     else editor.focus();
+    applySyntaxHighlights();
     scheduleLint();
   }
 
@@ -401,18 +763,38 @@ export async function runTuiApp(): Promise<void> {
       editor.setText(content);
       syncingEditor = false;
       dispatch({ type: "set-source", source: content });
+      const fileDerivedName = `${path.basename(file, path.extname(file))}.pdf`;
+      userEditedFilename = false;
+      dispatch({ type: "set-output-filename", filename: fileDerivedName });
+      outputFilename.value = fileDerivedName;
       addMessage(`Loaded ${shortenPath(file, 48)}`);
+      applySyntaxHighlights();
       scheduleLint();
     } catch (error) {
-      status.content = error instanceof DocketError ? error.message : formatDocketError(error).split("\n")[0] ?? "File access error";
+      const errorMsg = error instanceof DocketError ? error.message : "File access error";
+      status.content = errorMsg;
       status.fg = TUI_THEME.error;
-      addMessage(formatDocketError(error));
+      addMessage(errorMsg);
     }
   }
 
   async function readCurrentSource(): Promise<string> {
-    if (state.mode === "text") return editor.plainText;
-    try { return await fileSystem.readText(filePath.value.trim()); } catch { return ""; }
+    if (state.mode === "text") {
+      const text = editor.plainText;
+      return (text && text.trim().length > 0) ? text : (state.source || "");
+    }
+    const file = filePath.value.trim();
+    if (file) {
+      try {
+        return await fileSystem.readText(file);
+      } catch (err) {
+        if (editor.plainText && editor.plainText.trim().length > 0) {
+          return editor.plainText;
+        }
+        throw err;
+      }
+    }
+    return editor.plainText || state.source || "";
   }
 
   function scheduleLint(): void {
@@ -422,6 +804,7 @@ export async function runTuiApp(): Promise<void> {
     lintTimer = setTimeout(() => {
       void (async () => {
         try {
+          applySyntaxHighlights();
           const result = lintMarkdown(await readCurrentSource());
           if (generation !== lintGeneration) return;
           dispatch({ type: "lint-completed", diagnostics: result });
@@ -442,8 +825,10 @@ export async function runTuiApp(): Promise<void> {
     const current = THEME_IDS.indexOf(state.themeId);
     const themeId = THEME_IDS[(current + 1) % THEME_IDS.length] ?? "executive";
     dispatch({ type: "set-theme", themeId });
-    themeButton.text.content = ` Theme: ${THEMES[themeId].name} `;
-    addMessage(`Theme changed to ${THEMES[themeId].name}`);
+    themeButton.text.content = ` ${THEME_PALETTES[themeId].name.split(" ")[0]} `;
+    startupThemeButton.text.content = ` 🎨 ${THEME_PALETTES[themeId].name} `;
+    applyCurrentThemeColors(themeId);
+    addMessage(`Theme changed to ${THEME_PALETTES[themeId].name}`);
   }
 
   async function generatePdf(): Promise<void> {
@@ -463,10 +848,22 @@ export async function runTuiApp(): Promise<void> {
     status.fg = TUI_THEME.accent;
     addMessage("Rendering started");
     try {
+      let docTitle = "Docket Document";
+      if (state.mode === "file" && filePath.value.trim()) {
+        docTitle = path.basename(filePath.value, path.extname(filePath.value));
+      } else {
+        const firstHeading = source.match(/^#\s+(.+)$/m);
+        if (firstHeading && firstHeading[1]) {
+          docTitle = firstHeading[1].trim();
+        } else {
+          docTitle = "Executive Document";
+        }
+      }
+
       const result = await renderPdf({
         markdownSource: source,
         outputPath: resolvePdfOutputPath(outputDirectory.value, outputFilename.value),
-        title: state.mode === "file" ? path.basename(filePath.value, path.extname(filePath.value)) : "Pasted Executive Document",
+        title: docTitle,
         themeId: state.themeId,
         signal: renderAbortController.signal,
       });
@@ -486,11 +883,16 @@ export async function runTuiApp(): Promise<void> {
   }
 
   startupEditor.focus();
-  startupEditor.onContentChange = () => dispatch({ type: "set-source", source: startupEditor.plainText });
+  startupEditor.onContentChange = () => {
+    if (!syncingEditor) dispatch({ type: "set-source", source: startupEditor.plainText });
+  };
   filePath.onSubmit = () => void loadFile();
   filePath.onContentChange = () => dispatch({ type: "set-input-path", path: filePath.value });
   outputDirectory.onContentChange = () => dispatch({ type: "set-output-directory", path: outputDirectory.value });
-  outputFilename.onContentChange = () => dispatch({ type: "set-output-filename", filename: outputFilename.value });
+  outputFilename.onContentChange = () => {
+    userEditedFilename = true;
+    dispatch({ type: "set-output-filename", filename: outputFilename.value });
+  };
   renderer.on(CliRenderEvents.RESIZE, updateLayout);
   renderer.keyInput.on("keypress", (key: KeyEvent) => {
     if (key.ctrl && key.name === "c") {
@@ -521,10 +923,25 @@ export async function runTuiApp(): Promise<void> {
     if (key.name === "escape") {
       if (state.screen === "startup") renderer.destroy();
       else if (state.renderStatus === "rendering") renderAbortController?.abort();
+      return;
+    }
+    if (key.name === "tab" && state.screen === "workspace") {
+      const focusList = state.mode === "file"
+        ? [filePath, editor, outputDirectory, outputFilename, generateButton.box, themeButton.box, modeButton.box]
+        : [editor, outputDirectory, outputFilename, generateButton.box, themeButton.box, modeButton.box];
+
+      const currentIdx = focusList.findIndex((item) => (item as any).focused || (item as any).isFocused?.() || (item as any).hasSelection?.());
+      const nextIdx = key.shift
+        ? (currentIdx <= 0 ? focusList.length - 1 : currentIdx - 1)
+        : ((currentIdx + 1) % focusList.length);
+
+      focusList[nextIdx]?.focus();
+      return;
     }
   });
   dispatch({ type: "set-output-directory", path: outputDirectory.value });
   dispatch({ type: "set-output-filename", filename: outputFilename.value });
+  applyCurrentThemeColors(state.themeId);
   updateLayout();
 }
 

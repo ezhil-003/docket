@@ -8,7 +8,8 @@
   <p>
     <img src="https://img.shields.io/badge/runtime-Bun-000000?style=flat&logo=bun&logoColor=white" alt="Bun" />
     <img src="https://img.shields.io/badge/language-TypeScript-3178C6?style=flat&logo=typescript&logoColor=white" alt="TypeScript" />
-    <img src="https://img.shields.io/badge/tests-48%20passing-22c55e?style=flat" alt="48 tests passing" />
+    <img src="https://img.shields.io/badge/tests-50%20passing-22c55e?style=flat" alt="50 tests passing" />
+    <img src="https://img.shields.io/badge/version-1.3.0-blue?style=flat" alt="Version 1.3.0" />
     <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-8b5cf6?style=flat" alt="MIT License" /></a>
   </p>
 
@@ -22,27 +23,29 @@
 
 ## Docket
 
-Docket turns Markdown into polished, margin-safe executive PDFs. It combines a fast Bun/TypeScript CLI with a spacious OpenTUI workspace, live diagnostics, reusable themes, and a carefully isolated Puppeteer rendering pipeline.
+Docket turns Markdown into polished, margin-safe executive PDFs. It combines a fast Bun/TypeScript CLI with a spacious OpenTUI workspace, live syntax highlighting, diagnostics, reusable themes, and a carefully isolated Puppeteer rendering pipeline with Shiki code styling.
 
 Write in the terminal, open an existing document, or pipe Markdown from another command. Docket validates the document, renders it with the selected visual system, and publishes the PDF atomically so incomplete files are never left behind.
 
 ### Why Docket
 
-- **Readable by default** — an OpenCode-inspired terminal workspace with a focused editor, diagnostics panel, messages, clickable actions, and responsive layouts.
+- **Readable by default** — a maximized terminal editor with live syntax highlighting (VS Code, Catppuccin, One Dark, Dracula, Tokyo Night), gutter line numbering with error signs, scrollable sidebar, and clickable action buttons.
+- **Publication-ready code blocks** — powered by `shiki` with VS Code `dark-plus` themes for crisp, beautiful code formatting in generated PDFs.
+- **Native OS Pickers** — 1-click macOS Finder dialogs for selecting folders and Markdown documents.
 - **Safe to automate** — structured errors, signal handling, cancellation, browser recovery, bounded STDIN reads, and stable exit codes.
 - **Built for real documents** — margin-safe A4 output, font readiness checks, tables, code blocks, callouts, Markdown links, and 1,000-line documents.
-- **Designed to extend** — Functional Core / Imperative Shell, Ports and Adapters, dependency injection, reducer state, Strategy/Registry themes, and staged rendering.
 
 ## Highlights
 
 | Area | What you get |
 | --- | --- |
-| Markdown | `markdown-it` parsing with tables, links, code blocks, lists, blockquotes, and safe class-based HTML |
-| Diagnostics | Debounced linting with line numbers, rule IDs, severities, and suggestions |
+| Markdown & Code | `markdown-it` parsing with `shiki` syntax highlighting, tables, links, code blocks, lists, blockquotes, and safe HTML |
+| Editor & Syntax | Real-time token highlighting across 6 themes, gutter line numbers, and inline error (`✖`) / warning (`▲`) markers |
+| Diagnostics | Debounced linting with rule IDs, line numbers, severities, and actionable suggestions |
 | PDF output | Puppeteer Chromium rendering with A4 sizing, zero outer margins, internal safe padding, and atomic publication |
-| Themes | `modern`, `executive`, `technical`, `legal`, `boardroom`, and `minimal` |
-| TUI | Startup screen, editor workspace, diagnostics/messages panel, mouse actions, keyboard shortcuts, and responsive layout |
-| Reliability | Recoverable browser lifecycle, async cold-cache theme loading, cancellation, graceful crash handling, and structured errors |
+| Themes | `executive` (VS Code), `modern` (Catppuccin), `technical` (One Dark), `legal` (GitHub), `boardroom` (Dracula), `minimal` (Tokyo Night) |
+| TUI | Full-height canvas, scrollable sidebar, native Finder dialogs, centered action buttons, and responsive layouts |
+| Reliability | Recoverable browser lifecycle, async cold-cache theme loading, cancellation, and graceful crash handling |
 
 ## Installation
 
@@ -57,7 +60,7 @@ curl -fsSL https://raw.githubusercontent.com/ezhil-003/docket/main/scripts/insta
 To install a pinned release or use a custom install directory:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/ezhil-003/docket/main/scripts/install.sh | bash -s -- --version v1.2.5 --dir "$HOME/.local/bin"
+curl -fsSL https://raw.githubusercontent.com/ezhil-003/docket/main/scripts/install.sh | bash -s -- --version v1.3.0 --dir "$HOME/.local/bin"
 ```
 
 The installer supports `linux-x64`, `darwin-x64`, and `darwin-arm64`. It fails closed when the release checksum is missing or invalid.

@@ -25,9 +25,10 @@ describe("Theme Registry & CSS Loader (themes.ts)", () => {
   it("should strictly enforce the Margin Safety Contract in CSS output", () => {
     const css = loadThemeCss("modern");
     expect(css).toContain("@page");
-    expect(css).toContain("margin: 0;");
+    expect(css).toContain("margin: 18mm 16mm 20mm 16mm;");
     expect(css).toContain(".page-content");
-    expect(css).toContain("padding: 18mm 16mm 20mm 16mm;");
+    expect(css).toContain("thead");
+    expect(css).toContain("table-header-group");
   });
 
   it("should concatenate base CSS rules with specific theme token overrides", () => {

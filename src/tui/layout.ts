@@ -16,7 +16,7 @@ export function getTuiLayout(width: number, height: number): TuiLayout {
     sidebar,
     compact,
     diagnosticsHeight: compact ? "32%" : "38%",
-    editorHeight: height < 24 ? "45%" : "auto",
+    editorHeight: "100%",
   };
 }
 
