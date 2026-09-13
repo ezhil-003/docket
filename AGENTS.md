@@ -23,7 +23,7 @@ Welcome! This document provides operational guidelines, architecture layout, and
 ├── LICENSE                 # MIT License
 ├── README.md               # User documentation & feature overview
 ├── CHANGELOG.md            # Release history and changelogs
-├── package.json            # Scripts & dependencies (v1.3.0)
+├── package.json            # Scripts & dependencies (v1.4.0)
 ├── tsconfig.json           # TypeScript configuration
 ├── sample.md               # Sample Markdown document for testing
 ├── src/

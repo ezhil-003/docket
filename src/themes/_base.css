@@ -116,12 +116,23 @@ a {
 /* Lists */
 ul, ol {
   margin-top: 0;
-  margin-bottom: 1em;
-  padding-left: 1.5em;
+  margin-bottom: 1.25em;
+  padding-left: 1.4em;
+}
+
+ul > li::marker {
+  color: var(--color-accent);
+}
+
+ol > li::marker {
+  color: var(--color-accent);
+  font-weight: 600;
 }
 
 li {
-  margin-bottom: 0.35em;
+  margin-bottom: 0.4em;
+  break-inside: avoid;
+  page-break-inside: avoid;
   orphans: 3;
   widows: 3;
 }
@@ -132,34 +143,57 @@ code {
   font-size: 0.88em;
   background-color: var(--color-card-bg);
   color: var(--color-primary);
-  padding: 0.15em 0.4em;
+  padding: 0.15em 0.45em;
   border-radius: var(--radius-sm);
   border: 1px solid var(--color-border);
 }
 
-pre {
+pre, pre.shiki {
   font-family: var(--font-code);
-  font-size: 8.5pt;
-  line-height: 1.5;
+  font-size: 8.75pt;
+  line-height: 1.6;
   background-color: var(--color-code-bg);
   color: var(--color-code-text);
-  padding: 1em 1.25em;
-  border-radius: var(--radius-md);
-  overflow-x: auto;
-  margin-top: 1em;
-  margin-bottom: 1.25em;
+  padding: 1.15em 1.35em !important;
+  border-radius: var(--radius-md) !important;
+  border: 1px solid var(--color-border);
+  margin-top: 1.25em;
+  margin-bottom: 1.5em;
   break-inside: avoid;
   page-break-inside: avoid;
-  white-space: pre-wrap;
-  word-break: break-word;
+  white-space: pre-wrap !important;
+  word-break: break-word !important;
+  overflow-wrap: break-word !important;
+  position: relative;
+}
+
+pre[data-lang]::before {
+  content: attr(data-lang);
+  display: block;
+  float: right;
+  font-family: var(--font-heading);
+  font-size: 7pt;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.45);
+  margin-top: -0.25em;
+  margin-bottom: 0.4em;
+  user-select: none;
+}
+
+.shiki .line {
+  display: inline-block;
+  width: 100%;
+  min-height: 1.25em;
 }
 
 pre code {
-  background: none;
-  color: inherit;
-  padding: 0;
-  border: none;
-  font-size: inherit;
+  background: none !important;
+  color: inherit !important;
+  padding: 0 !important;
+  border: none !important;
+  font-size: inherit !important;
 }
 
 /* Blockquotes */
@@ -245,4 +279,15 @@ hr {
 .no-break {
   break-inside: avoid;
   page-break-inside: avoid;
+}
+
+/* Manual Page Break Helper */
+.page-break {
+  break-before: page;
+  page-break-before: always;
+  height: 0;
+  margin: 0;
+  padding: 0;
+  border: none;
+  visibility: hidden;
 }

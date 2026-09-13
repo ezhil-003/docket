@@ -36,6 +36,8 @@ export interface DocketState {
   outputDirectory: string;
   outputFilename: string;
   themeId: ThemeId;
+  pdfTheme: ThemeId;
+  tuiTheme: ThemeId;
   diagnosticsVisible: boolean;
   messages: string[];
   renderStatus: "idle" | "linting" | "rendering" | "success" | "error";

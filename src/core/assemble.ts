@@ -38,7 +38,7 @@ export function assembleHtml(
   themeId: ThemeId = "executive",
   title = "Docket Document"
 ): string {
-  return renderDocument(parseMarkdown(markdownSource), loadThemeCss(themeId), title);
+  return renderDocument(parseMarkdown(markdownSource, themeId), loadThemeCss(themeId), title);
 }
 
 /** Non-blocking variant used by renderPdf while retaining the sync API above. */
@@ -48,7 +48,7 @@ export async function assembleHtmlAsync(
   title = "Docket Document"
 ): Promise<string> {
   const [bodyHtml, css] = await Promise.all([
-    parseMarkdownAsync(markdownSource),
+    parseMarkdownAsync(markdownSource, themeId),
     loadThemeCssAsync(themeId),
   ]);
   return renderDocument(bodyHtml, css, title);

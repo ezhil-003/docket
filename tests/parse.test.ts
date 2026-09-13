@@ -33,6 +33,12 @@ describe("Markdown Parser (parse.ts)", () => {
     expect(html).toContain("<code>bun run cli</code>");
     expect(html).toContain("shiki dark-plus");
     expect(html).toContain("hello");
+
+    const modernHtml = await parseMarkdownAsync(md, "modern");
+    expect(modernHtml).toContain("shiki catppuccin-mocha");
+
+    const techHtml = await parseMarkdownAsync(md, "technical");
+    expect(techHtml).toContain("shiki one-dark-pro");
   });
 
   it("should preserve blockquotes and lists", () => {
@@ -48,6 +54,57 @@ describe("Markdown Parser (parse.ts)", () => {
     const md = '<div class="custom-badge">Badge</div>';
     const html = parseMarkdown(md);
     expect(html).toContain('<div class="custom-badge">Badge</div>');
+  });
+
+  it("should format unannotated and custom language code blocks consistently with Shiki theme", async () => {
+    const unannotatedMd = "```\nconst x = 42;\n```";
+    const html = await parseMarkdownAsync(unannotatedMd, "modern");
+    expect(html).toContain("shiki catppuccin-mocha");
+    expect(html).toContain("const x = 42;");
+
+    const taggedMd = "```json\n{\"foo\": 1}\n```";
+    const taggedHtml = await parseMarkdownAsync(taggedMd, "modern");
+    expect(taggedHtml).toContain('data-lang="json"');
+    expect(taggedHtml).toContain("shiki catppuccin-mocha");
+  });
+
+  it("should suppress empty code fences without generating empty pre blocks", async () => {
+    const emptyMd = "Before\n\n```\n```\n\nAfter";
+    const html = await parseMarkdownAsync(emptyMd, "modern");
+    expect(html).not.toContain("<pre");
+    expect(html).toContain("Before");
+    expect(html).toContain("After");
+  });
+
+  it("transforms manual page break markers into page-break containers", () => {
+    const variants = [
+      "\\newpage",
+      "/newpage",
+      "\\pagebreak",
+      "/pagebreak",
+      "<!-- pagebreak -->",
+      "<!-- page-break -->",
+      "<!-- newpage -->",
+      "<!-- new-page -->",
+      "[pagebreak]",
+      "[newpage]",
+      "{pagebreak}",
+      "{newpage}",
+    ];
+
+    for (const marker of variants) {
+      const md = `First Section\n\n${marker}\n\nSecond Section`;
+      const html = parseMarkdown(md);
+      expect(html).toContain('<div class="page-break"></div>');
+      expect(html).not.toContain(marker);
+    }
+  });
+
+  it("strictly preserves page break markers inside fenced code blocks", () => {
+    const md = "```latex\n\\begin{document}\n\\newpage\n\\end{document}\n```";
+    const html = parseMarkdown(md);
+    expect(html).toContain("\\newpage");
+    expect(html).not.toContain('<div class="page-break"></div>');
   });
 
   it("removes executable raw HTML while preserving safe content", () => {

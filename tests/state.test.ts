@@ -18,5 +18,20 @@ describe("TUI reducer state", () => {
     expect(idle.renderStatus).toBe("idle");
     expect(idle.diagnostics).toBe(diagnostics);
   });
+  it("decouples pdfTheme and tuiTheme transitions", () => {
+    const stateWithPdf = reduceTuiState(initialTuiState, { type: "set-pdf-theme", themeId: "legal" });
+    expect(stateWithPdf.pdfTheme).toBe("legal");
+    expect(stateWithPdf.themeId).toBe("legal");
+    expect(stateWithPdf.tuiTheme).toBe("executive"); // Preserved!
+
+    const stateWithTui = reduceTuiState(stateWithPdf, { type: "set-tui-theme", themeId: "boardroom" });
+    expect(stateWithTui.tuiTheme).toBe("boardroom");
+    expect(stateWithTui.pdfTheme).toBe("legal"); // Preserved!
+
+    const stateWithLegacy = reduceTuiState(initialTuiState, { type: "set-theme", themeId: "modern" });
+    expect(stateWithLegacy.themeId).toBe("modern");
+    expect(stateWithLegacy.pdfTheme).toBe("modern");
+    expect(stateWithLegacy.tuiTheme).toBe("modern");
+  });
 });
 

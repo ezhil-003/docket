@@ -43,4 +43,13 @@ describe("Theme Registry & CSS Loader (themes.ts)", () => {
     expect(css).toContain("Theme Preset: technical");
     expect(css).toContain("@page");
   });
+
+  it("strictly guarantees zero WebKit text-clip gradient hazards across all themes", () => {
+    for (const themeId of THEME_IDS) {
+      const css = loadThemeCss(themeId);
+      expect(css).not.toContain("-webkit-background-clip: text");
+      expect(css).not.toContain("-webkit-text-fill-color: transparent");
+      expect(css).toContain(".page-break");
+    }
+  });
 });

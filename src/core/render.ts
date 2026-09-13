@@ -126,17 +126,9 @@ async function waitForFonts(page: Page, timeoutMs: number): Promise<void> {
   }, timeoutMs);
 }
 
-async function writeHtmlAtomically(filePath: string, html: string): Promise<void> {
-  const temporaryPath = `${filePath}.tmp-${randomUUID()}`;
-  try {
-    await fs.mkdir(path.dirname(filePath), { recursive: true });
-    await fs.writeFile(temporaryPath, html, "utf8");
-    await fs.rename(temporaryPath, filePath);
-  } catch (error) {
-    try { await fs.unlink(temporaryPath); } catch { /* best effort */ }
-    throw new FileAccessError(filePath, error instanceof Error ? error.message : String(error));
-  }
-}
+import { NodeFileSystem } from "./fs";
+
+const defaultFileSystem = new NodeFileSystem();
 
 /** Executes the conversion pipeline and publishes only complete output files. */
 export async function renderPdf(
@@ -166,7 +158,7 @@ export async function renderPdf(
   const html = await assembleHtmlAsync(options.markdownSource, themeId, title);
 
   if (options.dryRunHtmlPath) {
-    await writeHtmlAtomically(options.dryRunHtmlPath, html);
+    await defaultFileSystem.writeTextAtomic(options.dryRunHtmlPath, html);
     if (options.dryRunOnly) {
       const stats = await fs.stat(options.dryRunHtmlPath);
       return {
@@ -176,11 +168,7 @@ export async function renderPdf(
       };
     }
   }
-  try {
-    await fs.mkdir(path.dirname(outputPath), { recursive: true });
-  } catch (error) {
-    throw new FileAccessError(options.outputPath, error instanceof Error ? error.message : String(error));
-  }
+  await defaultFileSystem.ensureDirectory(path.dirname(outputPath));
 
   throwIfAborted(options.signal);
   let page: Page | null = null;
@@ -191,6 +179,11 @@ export async function renderPdf(
     // HTML from executing code if an untrusted document reaches this pipeline.
     await page.setJavaScriptEnabled(false);
     await page.setContent(html, { waitUntil: "domcontentloaded", timeout: timeoutMs });
+    try {
+      await page.waitForNetworkIdle({ idleTime: 100, timeout: Math.min(timeoutMs, 5_000) });
+    } catch {
+      // Graceful fallback for offline or restricted network environments
+    }
     throwIfAborted(options.signal);
     await waitForFonts(page, timeoutMs);
     await page.evaluate(() => document.body.offsetHeight);

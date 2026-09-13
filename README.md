@@ -8,8 +8,8 @@
   <p>
     <img src="https://img.shields.io/badge/runtime-Bun-000000?style=flat&logo=bun&logoColor=white" alt="Bun" />
     <img src="https://img.shields.io/badge/language-TypeScript-3178C6?style=flat&logo=typescript&logoColor=white" alt="TypeScript" />
-    <img src="https://img.shields.io/badge/tests-50%20passing-22c55e?style=flat" alt="50 tests passing" />
-    <img src="https://img.shields.io/badge/version-1.3.0-blue?style=flat" alt="Version 1.3.0" />
+    <img src="https://img.shields.io/badge/tests-58%20passing-22c55e?style=flat" alt="58 tests passing" />
+    <img src="https://img.shields.io/badge/version-1.4.0-blue?style=flat" alt="Version 1.4.0" />
     <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-8b5cf6?style=flat" alt="MIT License" /></a>
   </p>
 
@@ -39,12 +39,12 @@ Write in the terminal, open an existing document, or pipe Markdown from another 
 
 | Area | What you get |
 | --- | --- |
-| Markdown & Code | `markdown-it` parsing with `shiki` syntax highlighting, tables, links, code blocks, lists, blockquotes, and safe HTML |
+| Markdown & Code | `markdown-it` parsing with `shiki` syntax highlighting, language badges, multi-syntax page breaks (`\newpage`, `<!-- pagebreak -->`), tables, links, code blocks, lists, blockquotes, and safe HTML |
 | Editor & Syntax | Real-time token highlighting across 6 themes, gutter line numbers, and inline error (`✖`) / warning (`▲`) markers |
 | Diagnostics | Debounced linting with rule IDs, line numbers, severities, and actionable suggestions |
-| PDF output | Puppeteer Chromium rendering with A4 sizing, zero outer margins, internal safe padding, and atomic publication |
-| Themes | `executive` (VS Code), `modern` (Catppuccin), `technical` (One Dark), `legal` (GitHub), `boardroom` (Dracula), `minimal` (Tokyo Night) |
-| TUI | Full-height canvas, scrollable sidebar, native Finder dialogs, centered action buttons, and responsive layouts |
+| PDF output | Puppeteer Chromium rendering with A4 sizing, margin-safe contract, font readiness checks, and atomic publication |
+| Themes | Independent PDF themes (`modern`, `executive`, `technical`, `legal`, `boardroom`, `minimal`) & TUI interface palettes |
+| TUI | Full-height canvas, scrollable sidebar, native Finder dialogs, centered action buttons, `Ctrl+S` buffer saving, and responsive layouts |
 | Reliability | Recoverable browser lifecycle, async cold-cache theme loading, cancellation, and graceful crash handling |
 
 ## Installation
@@ -60,7 +60,7 @@ curl -fsSL https://raw.githubusercontent.com/ezhil-003/docket/main/scripts/insta
 To install a pinned release or use a custom install directory:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/ezhil-003/docket/main/scripts/install.sh | bash -s -- --version v1.3.0 --dir "$HOME/.local/bin"
+curl -fsSL https://raw.githubusercontent.com/ezhil-003/docket/main/scripts/install.sh | bash -s -- --version v1.4.0 --dir "$HOME/.local/bin"
 ```
 
 The installer supports `linux-x64`, `darwin-x64`, and `darwin-arm64`. It fails closed when the release checksum is missing or invalid.
@@ -125,6 +125,7 @@ docket document.md --dry-run report.html
 | Shortcut | Action |
 | --- | --- |
 | `Ctrl+Enter` | Start the workspace or generate the PDF |
+| `Ctrl+S` | Save current editor buffer to file |
 | `Ctrl+O` | Open file mode |
 | `Tab` | Move between controls |
 | `Esc` | Interrupt rendering or leave the startup screen |

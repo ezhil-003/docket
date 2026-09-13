@@ -78,6 +78,14 @@ const x = 42;
     expect(result.warnings.some((w) => w.ruleId === "MD005/unclosed-html-tag")).toBe(true);
   });
 
+  it("ignores HTML-like tags inside inline code and HTML comments", () => {
+    const inlineResult = lintMarkdown("Use the `<div>` element in Markdown.");
+    expect(inlineResult.warnings.filter((w) => w.ruleId === "MD005/unclosed-html-tag")).toHaveLength(0);
+
+    const commentResult = lintMarkdown("<!-- <div> note -->\n\n# Document Title");
+    expect(commentResult.warnings.filter((w) => w.ruleId === "MD005/unclosed-html-tag")).toHaveLength(0);
+  });
+
   it("should handle empty or whitespace-only documents with warning (MD007)", () => {
     const result = lintMarkdown("   \n\t  ");
     expect(result.isValid).toBe(true);
@@ -87,6 +95,12 @@ const x = 42;
 
   it("does not lint valid Markdown-looking content inside a closed fence", () => {
     const result = lintMarkdown("```text\n[not a link(https://example.test\n| one | two |\n```\n\n# Real heading");
+    expect(result.isValid).toBe(true);
+    expect(result.errors).toHaveLength(0);
+  });
+
+  it("handles tilde-fenced code blocks and ignores content inside them", () => {
+    const result = lintMarkdown("~~~python\n[not a link\n| not a table\n~~~\n\n# Main Title");
     expect(result.isValid).toBe(true);
     expect(result.errors).toHaveLength(0);
   });

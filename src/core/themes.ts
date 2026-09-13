@@ -62,6 +62,8 @@ export const THEMES: Record<ThemeId, ThemeMeta> = {
 const cssCache = new Map<ThemeId, string>();
 const asyncCssLoads = new Map<ThemeId, Promise<string>>();
 
+import { EMBEDDED_BASE_CSS, EMBEDDED_THEME_CSS } from "../themes/embedded";
+
 export function isValidThemeId(theme: string): theme is ThemeId {
   return THEME_IDS.includes(theme as ThemeId);
 }
@@ -73,23 +75,23 @@ export function loadThemeCss(themeId: ThemeId = "executive"): string {
   if (cached) return cached;
 
   const themesDir = path.resolve(import.meta.dirname ?? __dirname, "../themes");
-
   const basePath = path.join(themesDir, "_base.css");
   const themePath = path.join(themesDir, `${currentThemeId}.css`);
 
   let baseCss = "";
   let themeCss = "";
 
-  try {
-    baseCss = fs.readFileSync(basePath, "utf-8");
-  } catch (err) {
-    throw new Error(`Failed to load base theme CSS from ${basePath}: ${err}`);
-  }
-
-  try {
-    themeCss = fs.readFileSync(themePath, "utf-8");
-  } catch (err) {
-    throw new Error(`Failed to load theme CSS for '${currentThemeId}' from ${themePath}: ${err}`);
+  if (fs.existsSync(basePath) && fs.existsSync(themePath)) {
+    try {
+      baseCss = fs.readFileSync(basePath, "utf-8");
+      themeCss = fs.readFileSync(themePath, "utf-8");
+    } catch {
+      baseCss = EMBEDDED_BASE_CSS;
+      themeCss = EMBEDDED_THEME_CSS[currentThemeId] ?? EMBEDDED_THEME_CSS.executive;
+    }
+  } else {
+    baseCss = EMBEDDED_BASE_CSS;
+    themeCss = EMBEDDED_THEME_CSS[currentThemeId] ?? EMBEDDED_THEME_CSS.executive;
   }
 
   const css = `${baseCss}\n\n/* Theme Preset: ${currentThemeId} */\n${themeCss}`;
@@ -116,15 +118,13 @@ export async function loadThemeCssAsync(themeId: ThemeId = "executive"): Promise
   const load = (async () => {
     let baseCss = "";
     let themeCss = "";
+
     try {
       baseCss = await fsp.readFile(basePath, "utf-8");
-    } catch (err) {
-      throw new Error(`Failed to load base theme CSS from ${basePath}: ${err}`);
-    }
-    try {
       themeCss = await fsp.readFile(themePath, "utf-8");
-    } catch (err) {
-      throw new Error(`Failed to load theme CSS for '${currentThemeId}' from ${themePath}: ${err}`);
+    } catch {
+      baseCss = EMBEDDED_BASE_CSS;
+      themeCss = EMBEDDED_THEME_CSS[currentThemeId] ?? EMBEDDED_THEME_CSS.executive;
     }
 
     const css = `${baseCss}\n\n/* Theme Preset: ${currentThemeId} */\n${themeCss}`;

@@ -28,9 +28,12 @@
 /* Headings with Indigo Styling & Pill Accents */
 h1 {
   font-size: 22pt;
+  font-weight: 800;
+  letter-spacing: -0.025em;
   line-height: 1.25;
   margin-top: 0;
   margin-bottom: 1.25rem;
+  padding-bottom: 0.35rem;
   color: var(--color-accent);
   border-bottom: 2px solid var(--color-accent-soft);
   display: block;
@@ -51,7 +54,7 @@ h2::before {
   content: "";
   display: inline-block;
   width: 5px;
-  height: 16px;
+  height: 1.05em;
   background: var(--color-accent);
   border-radius: 3px;
   flex-shrink: 0;

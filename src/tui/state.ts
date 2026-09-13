@@ -12,6 +12,8 @@ export type TuiEvent =
   | { type: "set-output-directory"; path: string }
   | { type: "set-output-filename"; filename: string }
   | { type: "set-theme"; themeId: ThemeId }
+  | { type: "set-pdf-theme"; themeId: ThemeId }
+  | { type: "set-tui-theme"; themeId: ThemeId }
   | { type: "toggle-diagnostics" }
   | { type: "add-message"; message: string }
   | { type: "lint-started" }
@@ -29,6 +31,8 @@ export const initialTuiState: DocketState = {
   outputDirectory: ".",
   outputFilename: "docket-output.pdf",
   themeId: "executive",
+  pdfTheme: "executive",
+  tuiTheme: "executive",
   diagnosticsVisible: false,
   messages: [],
   renderStatus: "idle",
@@ -43,7 +47,9 @@ export function reduceTuiState(state: DocketState, event: TuiEvent): DocketState
     case "set-input-path": return { ...state, inputPath: event.path };
     case "set-output-directory": return { ...state, outputDirectory: event.path };
     case "set-output-filename": return { ...state, outputFilename: event.filename };
-    case "set-theme": return { ...state, themeId: event.themeId };
+    case "set-theme": return { ...state, themeId: event.themeId, pdfTheme: event.themeId, tuiTheme: event.themeId };
+    case "set-pdf-theme": return { ...state, pdfTheme: event.themeId, themeId: event.themeId };
+    case "set-tui-theme": return { ...state, tuiTheme: event.themeId };
     case "toggle-diagnostics": return { ...state, diagnosticsVisible: !state.diagnosticsVisible };
     case "add-message": return { ...state, messages: [...state.messages, event.message].slice(-8) };
     case "lint-started": return { ...state, renderStatus: "linting", error: undefined };

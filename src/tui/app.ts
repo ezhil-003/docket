@@ -25,7 +25,7 @@ import type { DocketState } from "../core/contracts";
 import { getTuiLayout, shortenPath } from "./layout";
 import { TUI_THEME, THEME_PALETTES, getTuiTheme, createSyntaxStyle, type TuiColorPalette } from "./theme";
 
-const VERSION = process.env.npm_package_version ?? "1.3.0";
+const VERSION = process.env.npm_package_version ?? "1.4.0";
 const defaultSampleMarkdown = `# Executive Briefing
 
 > **Status**: Docket Markdown Engine Deployed
@@ -155,10 +155,10 @@ export async function runTuiApp(): Promise<void> {
     backgroundColor: TUI_THEME.panelElevated,
     focusedBackgroundColor: TUI_THEME.panelElevated,
     textColor: TUI_THEME.text,
-    syntaxStyle: createSyntaxStyle(getTuiTheme(state.themeId)),
+    syntaxStyle: createSyntaxStyle(getTuiTheme(state.tuiTheme)),
     onContentChange: () => {
       if (!syncingEditor) dispatch({ type: "set-source", source: startupEditor.plainText });
-      applySyntaxHighlightsToEditor(startupEditor, getTuiTheme(state.themeId));
+      applySyntaxHighlightsToEditor(startupEditor, getTuiTheme(state.tuiTheme));
     },
   });
   startupEditorFrame.add(startupEditor);
@@ -177,11 +177,13 @@ export async function runTuiApp(): Promise<void> {
     }
     startWorkspace("file");
   });
-  const startupThemeButton = makeButton(renderer, ` 🎨 ${THEME_PALETTES[state.themeId].name} `, () => cycleTheme());
+  const startupThemeButton = makeButton(renderer, ` 🎨 ${THEME_PALETTES[state.tuiTheme].name} `, () => cycleTuiTheme());
+  const startupPdfThemeButton = makeButton(renderer, ` 📄 Style: ${THEMES[state.pdfTheme].name.split(" ")[0]} `, () => cyclePdfTheme());
   const quitStartupButton = makeButton(renderer, " ✕ Quit (Esc) ", () => renderer.destroy());
   startupActions.add(startButton.box);
   startupActions.add(openButton.box);
   startupActions.add(startupThemeButton.box);
+  startupActions.add(startupPdfThemeButton.box);
   startupActions.add(quitStartupButton.box);
   const startupMeta = new BoxRenderable(renderer, { flexDirection: "row", justifyContent: "space-between", width: "100%" });
   const startupVersion = new TextRenderable(renderer, { content: `v${VERSION}`, fg: TUI_THEME.dim });
@@ -326,13 +328,17 @@ export async function runTuiApp(): Promise<void> {
   const generateButton = makeButton(renderer, " Generate PDF ", () => void generatePdf());
   generateButton.box.width = "100%";
   const subActionsRow = new BoxRenderable(renderer, { flexDirection: "row", width: "100%", gap: 1, flexShrink: 0 });
-  const themeButton = makeButton(renderer, ` ${THEMES[state.themeId].name.split(" ")[0]} `, () => cycleTheme());
-  themeButton.box.width = "56%";
-  themeButton.box.flexShrink = 0;
+  const pdfThemeButton = makeButton(renderer, ` 📄 ${THEMES[state.pdfTheme].name.split(" ")[0]} `, () => cyclePdfTheme());
+  pdfThemeButton.box.width = "30%";
+  pdfThemeButton.box.flexShrink = 0;
+  const tuiThemeButton = makeButton(renderer, ` 🎨 ${THEME_PALETTES[state.tuiTheme].name.split(" ")[0]} `, () => cycleTuiTheme());
+  tuiThemeButton.box.width = "34%";
+  tuiThemeButton.box.flexShrink = 0;
   const modeButton = makeButton(renderer, state.mode === "text" ? " Editor " : " File ", () => toggleMode());
-  modeButton.box.width = "42%";
+  modeButton.box.width = "30%";
   modeButton.box.flexShrink = 0;
-  subActionsRow.add(themeButton.box);
+  subActionsRow.add(pdfThemeButton.box);
+  subActionsRow.add(tuiThemeButton.box);
   subActionsRow.add(modeButton.box);
   const cancelButton = makeButton(renderer, " Cancel Render ", () => renderAbortController?.abort());
   cancelButton.box.width = "100%";
@@ -374,6 +380,11 @@ export async function runTuiApp(): Promise<void> {
   const filePathHeader = new BoxRenderable(renderer, { flexDirection: "row", justifyContent: "space-between", alignItems: "center", width: "100%" });
   filePathHeader.add(new TextRenderable(renderer, { content: "Source File", fg: TUI_THEME.muted }));
   const btnBrowseFile = makeMiniButton(renderer, " 🔍 Choose… ", async () => {
+    if (process.platform !== "darwin") {
+      addMessage("Native file picker is macOS-only. Type path directly.");
+      filePath.focus();
+      return;
+    }
     const file = await pickFileNative();
     if (file) {
       filePath.value = file;
@@ -415,6 +426,11 @@ export async function runTuiApp(): Promise<void> {
   const outputDirHeader = new BoxRenderable(renderer, { flexDirection: "row", justifyContent: "space-between", alignItems: "center", width: "100%" });
   outputDirHeader.add(new TextRenderable(renderer, { content: "Folder", fg: TUI_THEME.muted }));
   const btnBrowseFolder = makeMiniButton(renderer, " 🔍 Choose… ", async () => {
+    if (process.platform !== "darwin") {
+      addMessage("Native folder picker is macOS-only. Type folder path directly.");
+      outputDirectory.focus();
+      return;
+    }
     const folder = await pickFolderNative();
     if (folder) {
       outputDirectory.value = folder;
@@ -517,19 +533,23 @@ export async function runTuiApp(): Promise<void> {
     flexWrap: "wrap",
   });
   const btnGenerate = makeMiniButton(renderer, "⚡ Generate (Ctrl+Enter)", () => void generatePdf());
+  const btnSave = makeMiniButton(renderer, "💾 Save (Ctrl+S)", () => void saveFile());
   const btnOpenFile = makeMiniButton(renderer, "📁 Open File (Ctrl+O)", () => {
     dispatch({ type: "set-mode", mode: "file" });
     filePath.focus();
   });
-  const btnTheme = makeMiniButton(renderer, "🎨 Theme", () => cycleTheme());
+  const btnPdfTheme = makeMiniButton(renderer, `📄 Style: ${THEMES[state.pdfTheme].name.split(" ")[0]}`, () => cyclePdfTheme());
+  const btnTuiTheme = makeMiniButton(renderer, `🎨 UI: ${THEME_PALETTES[state.tuiTheme].name.split(" ")[0]}`, () => cycleTuiTheme());
   const btnMode = makeMiniButton(renderer, "✏ Mode", () => toggleMode());
   const btnQuit = makeMiniButton(renderer, "✕ Quit (Ctrl+Q)", () => {
     renderer.destroy();
     void shutdownRenderer();
   });
   footer.add(btnGenerate.box);
+  footer.add(btnSave.box);
   footer.add(btnOpenFile.box);
-  footer.add(btnTheme.box);
+  footer.add(btnPdfTheme.box);
+  footer.add(btnTuiTheme.box);
   footer.add(btnMode.box);
   footer.add(btnQuit.box);
   workspaceScreen.add(header);
@@ -549,25 +569,29 @@ export async function runTuiApp(): Promise<void> {
     lineNumberGutter.clearAllLineColors();
     lineNumberGutter.clearAllLineSigns();
 
+    const palette = getTuiTheme(state.tuiTheme);
+
     for (const err of result.errors) {
-      lineNumberGutter.setLineColor(err.line, { gutter: TUI_THEME.error });
-      lineNumberGutter.setLineSign(err.line, { before: "✖ ", beforeColor: TUI_THEME.error });
+      const lineIdx = Math.max(0, err.line - 1);
+      lineNumberGutter.setLineColor(lineIdx, { gutter: palette.error });
+      lineNumberGutter.setLineSign(lineIdx, { before: "✖ ", beforeColor: palette.error });
     }
     for (const warn of result.warnings) {
-      if (!result.errors.some((e) => e.line === warn.line)) {
-        lineNumberGutter.setLineColor(warn.line, { gutter: TUI_THEME.warning });
-        lineNumberGutter.setLineSign(warn.line, { before: "▲ ", beforeColor: TUI_THEME.warning });
+      const lineIdx = Math.max(0, warn.line - 1);
+      if (!result.errors.some((e) => Math.max(0, e.line - 1) === lineIdx)) {
+        lineNumberGutter.setLineColor(lineIdx, { gutter: palette.warning });
+        lineNumberGutter.setLineSign(lineIdx, { before: "▲ ", beforeColor: palette.warning });
       }
     }
 
     const first = result.errors[0] ?? result.warnings[0];
     if (!first) {
       diagnostics.content = "● Clean\n0 errors • 0 warnings\n\nNo issues detected.";
-      diagnostics.fg = TUI_THEME.success;
+      diagnostics.fg = palette.success;
       return;
     }
     diagnostics.content = `${first.severity === "error" ? "■" : "▲"} ${result.errors.length} error(s) • ${result.warnings.length} warning(s)\n\n${first.ruleId} • Line ${first.line}\n${first.message}\n\nHint: ${first.suggestion ?? "Review this section."}`;
-    diagnostics.fg = first.severity === "error" ? TUI_THEME.error : TUI_THEME.warning;
+    diagnostics.fg = first.severity === "error" ? palette.error : palette.warning;
   }
 
   function updateLayout(): void {
@@ -584,8 +608,11 @@ export async function runTuiApp(): Promise<void> {
     startupEditorFrame.height = layout.compact ? 7 : 9;
     startupEditor.height = "100%";
     generateButton.text.content = " Generate PDF ";
-    themeButton.text.content = ` ${THEMES[state.themeId].name.split(" ")[0]} `;
+    pdfThemeButton.text.content = ` 📄 ${THEMES[state.pdfTheme].name.split(" ")[0]} `;
+    tuiThemeButton.text.content = ` 🎨 ${THEME_PALETTES[state.tuiTheme].name.split(" ")[0]} `;
     modeButton.text.content = state.mode === "text" ? " Editor " : " File ";
+    btnPdfTheme.text.content = `📄 Style: ${THEMES[state.pdfTheme].name.split(" ")[0]}`;
+    btnTuiTheme.text.content = `🎨 UI: ${THEME_PALETTES[state.tuiTheme].name.split(" ")[0]}`;
   }
 
   function dispatch(event: TuiEvent): DocketState {
@@ -628,8 +655,10 @@ export async function runTuiApp(): Promise<void> {
 
   function applySyntaxHighlightsToEditor(targetEditor: TextareaRenderable, palette: TuiColorPalette): void {
     try {
-      const style = createSyntaxStyle(palette);
-      targetEditor.syntaxStyle = style;
+      if (!targetEditor.syntaxStyle) {
+        targetEditor.syntaxStyle = createSyntaxStyle(palette);
+      }
+      const style = targetEditor.syntaxStyle;
       targetEditor.clearAllHighlights();
 
       const headingId = style.resolveStyleId("heading") ?? 1;
@@ -638,19 +667,45 @@ export async function runTuiApp(): Promise<void> {
       const codeId = style.resolveStyleId("code") ?? 1;
       const keywordId = style.resolveStyleId("keyword") ?? 1;
       const stringId = style.resolveStyleId("string") ?? 1;
+      const commentId = style.resolveStyleId("comment") ?? 1;
 
       const text = targetEditor.plainText || "";
       const lines = text.split("\n");
       let inCodeBlock = false;
+      let codeFenceMarker: string | null = null;
+      let inFrontmatter = false;
 
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i]!;
-        const trimmed = line.trimStart();
+        const trimmed = line.trim();
+        const trimmedStart = line.trimStart();
 
-        // Code fence
-        if (trimmed.startsWith("```")) {
+        // Frontmatter handling (lines 0..N)
+        if (i === 0 && (trimmed === "---" || trimmed === "+++")) {
+          inFrontmatter = true;
+          targetEditor.addHighlight(i, { start: 0, end: line.length, styleId: commentId });
+          continue;
+        }
+        if (inFrontmatter) {
+          targetEditor.addHighlight(i, { start: 0, end: line.length, styleId: commentId });
+          if (trimmed === "---" || trimmed === "+++") {
+            inFrontmatter = false;
+          }
+          continue;
+        }
+
+        // Code fence (``` or ~~~)
+        if (/^(`{3,}|~{3,})/.test(trimmedStart)) {
+          const markerMatch = trimmedStart.match(/^(`{3,}|~{3,})/);
+          const markerChar = (markerMatch?.[1]?.[0]) ?? "`";
           targetEditor.addHighlight(i, { start: 0, end: line.length, styleId: keywordId });
-          inCodeBlock = !inCodeBlock;
+          if (!inCodeBlock) {
+            inCodeBlock = true;
+            codeFenceMarker = markerChar;
+          } else if (codeFenceMarker === markerChar) {
+            inCodeBlock = false;
+            codeFenceMarker = null;
+          }
           continue;
         }
 
@@ -660,27 +715,27 @@ export async function runTuiApp(): Promise<void> {
         }
 
         // Heading (#, ##, ###)
-        if (/^#{1,6}\s+/.test(trimmed)) {
+        if (/^#{1,6}\s+/.test(trimmedStart)) {
           targetEditor.addHighlight(i, { start: 0, end: line.length, styleId: headingId });
           continue;
         }
 
         // Blockquote (> Quote)
-        if (trimmed.startsWith(">")) {
+        if (trimmedStart.startsWith(">")) {
           targetEditor.addHighlight(i, { start: 0, end: line.length, styleId: quoteId });
           continue;
         }
 
         // List item bullet
-        if (/^([-*+]|\d+\.)\s+/.test(trimmed)) {
-          const match = trimmed.match(/^([-*+]|\d+\.)\s+/);
+        if (/^([-*+]|\d+\.)\s+/.test(trimmedStart)) {
+          const match = trimmedStart.match(/^([-*+]|\d+\.)\s+/);
           const bulletLen = match ? match[0].length : 2;
-          const indent = line.length - trimmed.length;
+          const indent = line.length - trimmedStart.length;
           targetEditor.addHighlight(i, { start: indent, end: indent + bulletLen, styleId: listId });
         }
 
         // Table headers or horizontal rules
-        if (/^(\|?[\s-:]+\|[\s-:]+\|?|---)$/.test(trimmed)) {
+        if (/^(\|?[\s-:]+\|[\s-:]+\|?|---)$/.test(trimmedStart)) {
           targetEditor.addHighlight(i, { start: 0, end: line.length, styleId: keywordId });
         }
 
@@ -714,10 +769,12 @@ export async function runTuiApp(): Promise<void> {
   function applyCurrentThemeColors(themeId: ThemeId): void {
     const palette = getTuiTheme(themeId);
     
+    startupEditor.syntaxStyle = createSyntaxStyle(palette);
     startupEditor.backgroundColor = palette.panelElevated;
     startupEditor.focusedBackgroundColor = palette.panelElevated;
     startupEditor.textColor = palette.text;
     
+    editor.syntaxStyle = createSyntaxStyle(palette);
     editor.backgroundColor = palette.panelElevated;
     editor.focusedBackgroundColor = palette.panelElevated;
     editor.textColor = palette.text;
@@ -729,10 +786,13 @@ export async function runTuiApp(): Promise<void> {
 
     applySyntaxHighlightsToEditor(startupEditor, palette);
     applySyntaxHighlightsToEditor(editor, palette);
+    if (state.diagnostics) {
+      updateDiagnostics(state.diagnostics);
+    }
   }
 
   function applySyntaxHighlights(): void {
-    applySyntaxHighlightsToEditor(editor, getTuiTheme(state.themeId));
+    applySyntaxHighlightsToEditor(editor, getTuiTheme(state.tuiTheme));
   }
 
   function startWorkspace(mode: "text" | "file"): void {
@@ -772,29 +832,56 @@ export async function runTuiApp(): Promise<void> {
       scheduleLint();
     } catch (error) {
       const errorMsg = error instanceof DocketError ? error.message : "File access error";
-      status.content = errorMsg;
-      status.fg = TUI_THEME.error;
+      headerStatus.content = errorMsg;
+      headerStatus.fg = getTuiTheme(state.tuiTheme).error;
       addMessage(errorMsg);
     }
   }
 
   async function readCurrentSource(): Promise<string> {
-    if (state.mode === "text") {
-      const text = editor.plainText;
-      return (text && text.trim().length > 0) ? text : (state.source || "");
+    const text = state.screen === "startup" ? startupEditor.plainText : editor.plainText;
+    if (text !== undefined && text !== null && text.length > 0) {
+      return text;
+    }
+    if (state.source && state.source.length > 0) {
+      return state.source;
     }
     const file = filePath.value.trim();
     if (file) {
       try {
-        return await fileSystem.readText(file);
-      } catch (err) {
-        if (editor.plainText && editor.plainText.trim().length > 0) {
-          return editor.plainText;
-        }
-        throw err;
+        const diskContent = await fileSystem.readText(file);
+        syncingEditor = true;
+        editor.setText(diskContent);
+        syncingEditor = false;
+        dispatch({ type: "set-source", source: diskContent });
+        return diskContent;
+      } catch {
+        // Fallback below
       }
     }
-    return editor.plainText || state.source || "";
+    return "";
+  }
+
+  async function saveFile(): Promise<void> {
+    const file = filePath.value.trim();
+    if (!file) {
+      headerStatus.content = "Save failed: No file path specified.";
+      headerStatus.fg = getTuiTheme(state.tuiTheme).warning;
+      addMessage("No file path specified to save");
+      return;
+    }
+    try {
+      const content = (state.screen === "startup" ? startupEditor.plainText : editor.plainText) || state.source || "";
+      await fileSystem.writeTextAtomic(file, content);
+      headerStatus.content = `✓ Saved ${shortenPath(file, 40)}`;
+      headerStatus.fg = getTuiTheme(state.tuiTheme).success;
+      addMessage(`Saved changes to ${shortenPath(file, 48)}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      headerStatus.content = `Save failed: ${message}`;
+      headerStatus.fg = getTuiTheme(state.tuiTheme).error;
+      addMessage(`Save failed: ${message}`);
+    }
   }
 
   function scheduleLint(): void {
@@ -802,33 +889,46 @@ export async function runTuiApp(): Promise<void> {
     const generation = ++lintGeneration;
     dispatch({ type: "lint-started" });
     lintTimer = setTimeout(() => {
-      void (async () => {
-        try {
-          applySyntaxHighlights();
-          const result = lintMarkdown(await readCurrentSource());
-          if (generation !== lintGeneration) return;
-          dispatch({ type: "lint-completed", diagnostics: result });
-          updateDiagnostics(result);
-          addMessage(result.isValid ? "Lint completed — ready to render" : `Lint found ${result.errors.length} error(s)`);
-        } catch (error) {
-          if (generation !== lintGeneration) return;
-          const message = error instanceof Error ? error.message : String(error);
-          status.content = `Lint failed: ${message}`;
-          status.fg = TUI_THEME.error;
-          addMessage(`Lint failed: ${message}`);
-        }
-      })();
+      try {
+        applySyntaxHighlights();
+        const source = (state.screen === "startup" ? startupEditor.plainText : editor.plainText) || state.source || "";
+        const result = lintMarkdown(source);
+        if (generation !== lintGeneration) return;
+        dispatch({ type: "lint-completed", diagnostics: result });
+        updateDiagnostics(result);
+      } catch (error) {
+        if (generation !== lintGeneration) return;
+        const message = error instanceof Error ? error.message : String(error);
+        headerStatus.content = `Lint failed: ${message}`;
+        headerStatus.fg = getTuiTheme(state.tuiTheme).error;
+        addMessage(`Lint failed: ${message}`);
+      }
     }, 160);
   }
 
+  function cyclePdfTheme(): void {
+    const current = THEME_IDS.indexOf(state.pdfTheme);
+    const nextTheme = THEME_IDS[(current + 1) % THEME_IDS.length] ?? "executive";
+    dispatch({ type: "set-pdf-theme", themeId: nextTheme });
+    pdfThemeButton.text.content = ` 📄 ${THEMES[nextTheme].name.split(" ")[0]} `;
+    startupPdfThemeButton.text.content = ` 📄 Style: ${THEMES[nextTheme].name.split(" ")[0]} `;
+    btnPdfTheme.text.content = `📄 Style: ${THEMES[nextTheme].name.split(" ")[0]}`;
+    addMessage(`PDF output style set to ${THEMES[nextTheme].name}`);
+  }
+
+  function cycleTuiTheme(): void {
+    const current = THEME_IDS.indexOf(state.tuiTheme);
+    const nextTheme = THEME_IDS[(current + 1) % THEME_IDS.length] ?? "executive";
+    dispatch({ type: "set-tui-theme", themeId: nextTheme });
+    tuiThemeButton.text.content = ` 🎨 ${THEME_PALETTES[nextTheme].name.split(" ")[0]} `;
+    startupThemeButton.text.content = ` 🎨 ${THEME_PALETTES[nextTheme].name} `;
+    btnTuiTheme.text.content = `🎨 UI: ${THEME_PALETTES[nextTheme].name.split(" ")[0]}`;
+    applyCurrentThemeColors(nextTheme);
+    addMessage(`Terminal UI theme set to ${THEME_PALETTES[nextTheme].name}`);
+  }
+
   function cycleTheme(): void {
-    const current = THEME_IDS.indexOf(state.themeId);
-    const themeId = THEME_IDS[(current + 1) % THEME_IDS.length] ?? "executive";
-    dispatch({ type: "set-theme", themeId });
-    themeButton.text.content = ` ${THEME_PALETTES[themeId].name.split(" ")[0]} `;
-    startupThemeButton.text.content = ` 🎨 ${THEME_PALETTES[themeId].name} `;
-    applyCurrentThemeColors(themeId);
-    addMessage(`Theme changed to ${THEME_PALETTES[themeId].name}`);
+    cyclePdfTheme();
   }
 
   async function generatePdf(): Promise<void> {
@@ -837,15 +937,15 @@ export async function runTuiApp(): Promise<void> {
     const lint = lintMarkdown(source);
     updateDiagnostics(lint);
     if (!lint.isValid) {
-      status.content = "Cannot render until Markdown errors are fixed.";
-      status.fg = TUI_THEME.error;
+      headerStatus.content = "Cannot render until Markdown errors are fixed.";
+      headerStatus.fg = getTuiTheme(state.tuiTheme).error;
       addMessage("Render blocked by lint errors");
       return;
     }
     renderAbortController = new AbortController();
     dispatch({ type: "render-started" });
-    status.content = "Rendering… Chromium is preparing the PDF.";
-    status.fg = TUI_THEME.accent;
+    headerStatus.content = "Rendering… Chromium is preparing the PDF.";
+    headerStatus.fg = getTuiTheme(state.tuiTheme).accent;
     addMessage("Rendering started");
     try {
       let docTitle = "Docket Document";
@@ -864,18 +964,18 @@ export async function runTuiApp(): Promise<void> {
         markdownSource: source,
         outputPath: resolvePdfOutputPath(outputDirectory.value, outputFilename.value),
         title: docTitle,
-        themeId: state.themeId,
+        themeId: state.pdfTheme,
         signal: renderAbortController.signal,
       });
       dispatch({ type: "render-succeeded" });
-      status.content = `✓ Created ${shortenPath(result.outputPath, 48)} (${(result.bytes / 1024).toFixed(1)} KB, ${(result.durationMs / 1000).toFixed(2)}s)`;
-      status.fg = TUI_THEME.success;
+      headerStatus.content = `✓ Created ${shortenPath(result.outputPath, 48)} (${(result.bytes / 1024).toFixed(1)} KB, ${(result.durationMs / 1000).toFixed(2)}s)`;
+      headerStatus.fg = getTuiTheme(state.tuiTheme).success;
       addMessage(`Render completed — ${shortenPath(result.outputPath, 58)}`);
     } catch (error) {
       const docketError = error instanceof DocketError ? error : new DocketError(error instanceof Error ? error.message : String(error));
       dispatch({ type: "render-failed", error: docketError });
-      status.content = docketError.message;
-      status.fg = TUI_THEME.error;
+      headerStatus.content = docketError.message;
+      headerStatus.fg = getTuiTheme(state.tuiTheme).error;
       addMessage(docketError.message);
     } finally {
       renderAbortController = undefined;
@@ -905,6 +1005,10 @@ export async function runTuiApp(): Promise<void> {
       void shutdownRenderer();
       return;
     }
+    if (key.ctrl && key.name === "s" && state.screen === "workspace") {
+      void saveFile();
+      return;
+    }
     if (key.ctrl && key.name === "o") {
       if (state.screen === "startup") startWorkspace("file");
       else dispatch({ type: "set-mode", mode: "file" });
@@ -927,8 +1031,8 @@ export async function runTuiApp(): Promise<void> {
     }
     if (key.name === "tab" && state.screen === "workspace") {
       const focusList = state.mode === "file"
-        ? [filePath, editor, outputDirectory, outputFilename, generateButton.box, themeButton.box, modeButton.box]
-        : [editor, outputDirectory, outputFilename, generateButton.box, themeButton.box, modeButton.box];
+        ? [filePath, editor, outputDirectory, outputFilename, generateButton.box, pdfThemeButton.box, tuiThemeButton.box, modeButton.box]
+        : [editor, outputDirectory, outputFilename, generateButton.box, pdfThemeButton.box, tuiThemeButton.box, modeButton.box];
 
       const currentIdx = focusList.findIndex((item) => (item as any).focused || (item as any).isFocused?.() || (item as any).hasSelection?.());
       const nextIdx = key.shift
@@ -941,11 +1045,11 @@ export async function runTuiApp(): Promise<void> {
   });
   dispatch({ type: "set-output-directory", path: outputDirectory.value });
   dispatch({ type: "set-output-filename", filename: outputFilename.value });
-  applyCurrentThemeColors(state.themeId);
+  applyCurrentThemeColors(state.tuiTheme);
   updateLayout();
 }
 
-if (import.meta.url === `file://${process.argv[1]}` || process.argv[1]?.endsWith("app.ts")) {
+if (import.meta.main) {
   void runTuiApp().catch(async (error) => {
     console.error(formatDocketError(error));
     await shutdownRenderer();

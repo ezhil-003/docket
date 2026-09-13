@@ -186,7 +186,7 @@ function installProcessLifecycle(): void {
   });
 }
 
-if (import.meta.url === `file://${process.argv[1]}` || process.argv[1]?.endsWith("cli.ts")) {
+if (import.meta.main) {
   installProcessLifecycle();
   void main().then((code) => { process.exitCode = code; });
 }

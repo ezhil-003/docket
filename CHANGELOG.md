@@ -8,7 +8,30 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 No changes yet.
 
-## [1.3.0] — 2026-08-19
+## [1.4.0] — 2026-09-14
+
+### Added
+
+- **Multi-Syntax Manual Page Break Engine**: Native support for manual page break markers on standalone lines outside code blocks, translating into CSS Paged Media `break-before: page; page-break-before: always;`. Supports LaTeX/Pandoc (`\newpage`, `\pagebreak`), HTML comments (`<!-- pagebreak -->`, `<!-- page-break -->`, `<!-- newpage -->`, `<!-- new-page -->`), shortcodes (`[pagebreak]`, `[newpage]`, `{pagebreak}`, `{newpage}`), and user typo variants (`/newpage`, `/pagebreak`). Fenced code blocks (` ``` ` and `~~~`) are strictly protected from transformation.
+- **Decoupled PDF and TUI Theme State**: Dedicated independent selectors for the PDF output theme (`pdfTheme`) and the terminal interface theme (`tuiTheme`), allowing users to style the generated document and the terminal independently.
+- **Direct Save Command (`Ctrl+S`)**: Quick-save the current editor buffer directly to the active file path or output directory with instant status notifications.
+- **Universal Shiki Syntax Highlighting & Badges**: Every code block—including unannotated fences (defaulting to clean `text`) and 14+ newly supported languages (`c`, `cpp`, `csharp`, `java`, `ruby`, `php`, `dockerfile`, `diff`, `xml`, `toml`, `graphql`, `swift`, `kotlin`)—is highlighted using the document's selected theme with language corner badges (`data-lang`).
+- **Suppressed Empty Code Blocks**: Blank or unclosed code fences no longer render as dangling, empty pre boxes in the generated PDF.
+
+### Fixed
+
+- **WebKit / Apple Quartz Heading Render Bug**: Eliminated `-webkit-background-clip: text; -webkit-text-fill-color: transparent;` on `h1` in `modern.css` in favor of high-contrast solid vector typography (`color: var(--color-accent);`) and soft accent borders. Resolves the notorious macOS Preview / Apple PDFKit bug that rendered solid purple rectangles over headings.
+- **Web Font Loading Timing**: Enhanced Puppeteer page lifecycle in `src/core/render.ts` to wait for network idle (`page.waitForNetworkIdle`) before font readiness (`document.fonts.ready`), guaranteeing Google WebFonts (`Plus Jakarta Sans`, `Inter`, `JetBrains Mono`, `Source Serif 4`) download and render reliably without falling back to system fonts.
+- **Live Editor Buffer Authority**: Ensured that edits typed or modified in the TUI editor take immediate precedence during PDF generation and lint diagnostics without requiring file reload from disk.
+- **Gutter Diagnostic Alignment**: Fixed 0-indexed gutter diagnostic marker displacement (`Math.max(0, err.line - 1)`), correctly aligning error and warning markers with their corresponding editor lines.
+- **Linter HTML-in-Code False Positives**: Resolved false positive `MD005/unclosed-html-tag` warnings triggered by HTML-like tags inside inline code snippets and HTML comments.
+- **Tilde Fenced Blocks**: Added full support for tilde fences (`~~~`) in the markdown linter, preventing false syntax errors inside code blocks.
+
+### Changed
+
+- Bumped version to `1.4.0` across `package.json`, binary builds, documentation, and TUI status headers.
+- Re-synchronized embedded CSS fallbacks in `src/themes/embedded.ts` for standalone compiled binaries.
+
 
 ### Added
 

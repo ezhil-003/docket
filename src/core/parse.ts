@@ -1,5 +1,15 @@
 import MarkdownIt from "markdown-it";
 import { createHighlighter, type Highlighter } from "shiki";
+import type { ThemeId } from "./themes";
+
+export const SHIKI_THEME_MAP: Record<ThemeId, string> = {
+  executive: "dark-plus",
+  modern: "catppuccin-mocha",
+  technical: "one-dark-pro",
+  legal: "github-dark",
+  boardroom: "dracula",
+  minimal: "tokyo-night",
+};
 
 let highlighterPromise: Promise<Highlighter> | undefined;
 let syncHighlighter: Highlighter | undefined;
@@ -7,7 +17,14 @@ let syncHighlighter: Highlighter | undefined;
 export function getHighlighterInstance(): Promise<Highlighter> {
   if (!highlighterPromise) {
     highlighterPromise = createHighlighter({
-      themes: ["dark-plus"],
+      themes: [
+        "dark-plus",
+        "catppuccin-mocha",
+        "one-dark-pro",
+        "github-dark",
+        "dracula",
+        "tokyo-night",
+      ],
       langs: [
         "typescript",
         "javascript",
@@ -24,6 +41,20 @@ export function getHighlighterInstance(): Promise<Highlighter> {
         "sql",
         "markdown",
         "md",
+        "c",
+        "cpp",
+        "csharp",
+        "java",
+        "ruby",
+        "php",
+        "dockerfile",
+        "diff",
+        "xml",
+        "toml",
+        "graphql",
+        "swift",
+        "kotlin",
+        "text",
       ],
     }).then((h) => {
       syncHighlighter = h;
@@ -45,29 +76,60 @@ function escapeCodeHtml(str: string): string {
     .replace(/'/g, "&#039;");
 }
 
-const md = new MarkdownIt({
-  html: true,
-  linkify: true,
-  typographer: true,
-  breaks: false,
-  highlight: (code, lang) => {
-    if (syncHighlighter) {
-      try {
-        const loadedLangs = syncHighlighter.getLoadedLanguages();
-        const validLang = lang && loadedLangs.includes(lang.toLowerCase()) ? lang.toLowerCase() : "text";
-        if (validLang !== "text") {
-          return syncHighlighter.codeToHtml(code, {
-            lang: validLang,
-            theme: "dark-plus",
-          });
-        }
-      } catch {
-        // fallback
+type MarkdownItInstance = ReturnType<typeof MarkdownIt>;
+const parserCache = new Map<ThemeId, MarkdownItInstance>();
+
+function getMarkdownParser(themeId: ThemeId = "executive"): MarkdownItInstance {
+  const currentThemeId = (themeId in SHIKI_THEME_MAP) ? themeId : "executive";
+  const cached = parserCache.get(currentThemeId);
+  if (cached) return cached;
+
+  const shikiTheme = SHIKI_THEME_MAP[currentThemeId] ?? "dark-plus";
+  const parser = new MarkdownIt({
+    html: true,
+    linkify: true,
+    typographer: true,
+    breaks: false,
+    highlight: (code, lang) => {
+      if (!code || code.trim().length === 0) {
+        return "";
       }
+      if (syncHighlighter) {
+        try {
+          const loadedLangs = syncHighlighter.getLoadedLanguages();
+          const cleanLang = lang?.trim().toLowerCase();
+          const validLang = cleanLang && loadedLangs.includes(cleanLang) ? cleanLang : "text";
+          const highlighted = syncHighlighter.codeToHtml(code, {
+            lang: validLang,
+            theme: shikiTheme,
+          });
+          if (cleanLang && cleanLang !== "text") {
+            return highlighted.replace(/^<pre\b/, `<pre data-lang="${escapeCodeHtml(cleanLang)}"`);
+          }
+          return highlighted;
+        } catch {
+          // fallback
+        }
+      }
+      return `<pre class="shiki ${shikiTheme}"><code>${escapeCodeHtml(code)}</code></pre>`;
+    },
+  });
+
+  const defaultFence = parser.renderer.rules.fence;
+  parser.renderer.rules.fence = (tokens, idx, options, env, self) => {
+    const token = tokens[idx];
+    if (!token?.content || token.content.trim().length === 0) {
+      return "";
     }
-    return `<pre class="shiki dark-plus"><code>${escapeCodeHtml(code)}</code></pre>`;
-  },
-});
+    if (defaultFence) {
+      return defaultFence(tokens, idx, options, env, self);
+    }
+    return self.renderToken(tokens, idx, options);
+  };
+
+  parserCache.set(currentThemeId, parser);
+  return parser;
+}
 
 /**
  * Keep the supported raw-HTML workflow (for example, class-based callouts)
@@ -84,26 +146,67 @@ function sanitizeRenderedHtml(html: string): string {
 
   // Inline styles are not required by Docket's class-based themes.
   // We preserve styles injected by Shiki while removing untrusted raw styles elsewhere.
-  sanitized = sanitized.replace(/(<[^>]+)\sstyle="([^"]*expression\([^)]*\)[^"]*)"/gi, "$1");
+  sanitized = sanitized.replace(/(<[^>]+)\sstyle=(?:"[^"]*expression\([^)]*\)[^"]*"|'[^']*expression\([^)]*\)[^']*')/gi, "$1");
   return sanitized;
+}
+
+/**
+ * Detects standalone page break commands in Markdown outside fenced code blocks and
+ * replaces them with a `<div class="page-break"></div>` element.
+ *
+ * Supported formats (case-insensitive on standalone lines):
+ * - LaTeX: \newpage, \pagebreak
+ * - User/typo variations: /newpage, /pagebreak
+ * - HTML comments: <!-- pagebreak -->, <!-- page-break -->, <!-- newpage -->, <!-- new-page -->
+ * - Shortcodes: [pagebreak], [newpage], {pagebreak}, {newpage}
+ */
+export function preprocessPageBreaks(markdown: string): string {
+  const PAGE_BREAK_RE = /^\s*(?:\\newpage|\\pagebreak|\/newpage|\/pagebreak|<!--\s*(?:pagebreak|page-break|newpage|new-page)\s*-->|\[(?:pagebreak|newpage)\]|\{(?:pagebreak|newpage)\})\s*$/i;
+
+  const lines = markdown.split(/\r?\n/);
+  let inFence = false;
+  let fenceMarker = "";
+
+  const transformed = lines.map((line) => {
+    const trimmed = line.trim();
+    if (trimmed.startsWith("```") || trimmed.startsWith("~~~")) {
+      const marker = trimmed.slice(0, 3);
+      if (!inFence) {
+        inFence = true;
+        fenceMarker = marker;
+      } else if (marker === fenceMarker) {
+        inFence = false;
+        fenceMarker = "";
+      }
+      return line;
+    }
+    if (!inFence && PAGE_BREAK_RE.test(line)) {
+      return '<div class="page-break"></div>';
+    }
+    return line;
+  });
+
+  return transformed.join("\n");
 }
 
 /**
  * Parses Markdown raw text string into sanitized HTML body content.
  */
-export function parseMarkdown(source: string): string {
+export function parseMarkdown(source: string, themeId: ThemeId = "executive"): string {
   if (!source || source.trim().length === 0) {
     return "<p><em>[Empty Document]</em></p>";
   }
-  return sanitizeRenderedHtml(md.render(source));
+  const processed = preprocessPageBreaks(source);
+  const md = getMarkdownParser(themeId);
+  return sanitizeRenderedHtml(md.render(processed));
 }
 
 /**
  * Asynchronous variant ensuring Shiki highlighter is fully loaded before rendering.
  */
-export async function parseMarkdownAsync(source: string): Promise<string> {
+export async function parseMarkdownAsync(source: string, themeId: ThemeId = "executive"): Promise<string> {
   if (!syncHighlighter) {
     syncHighlighter = await getHighlighterInstance();
   }
-  return parseMarkdown(source);
+  return parseMarkdown(source, themeId);
 }

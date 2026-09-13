@@ -162,8 +162,10 @@ export function lintMarkdown(source: string): LintResult {
       inTable = false;
     }
 
+    const maskedLine = maskInlineCode(line);
+    const lineWithoutComments = maskedLine.replace(/<!--[\s\S]*?-->/g, "");
     const tagPattern = /<\/?(div|span|table|tr|td|th|b|i|strong|em)(?:\s[^>]*)?>/gi;
-    for (const match of line.matchAll(tagPattern)) {
+    for (const match of lineWithoutComments.matchAll(tagPattern)) {
       const fullTag = match[0] ?? "";
       const tag = match[1]?.toLowerCase();
       if (!tag || fullTag.endsWith("/>") || ["br", "img", "hr"].includes(tag)) continue;
