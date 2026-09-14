@@ -8,10 +8,13 @@ import { DocketError, MarkdownLintError, PuppeteerRenderError, FileAccessError }
 import type { ThemeId } from "./themes";
 import { normalizePdfOutputPath } from "./output";
 
+import { extractFrontmatter } from "./frontmatter";
+
 export interface RenderOptions {
   markdownSource: string;
-  themeId?: ThemeId;
   outputPath: string;
+  themeId?: ThemeId;
+  customCssPath?: string;
   title?: string;
   dryRunHtmlPath?: string;
   dryRunOnly?: boolean;
@@ -24,6 +27,7 @@ export interface RenderResult {
   outputPath: string;
   bytes: number;
   durationMs: number;
+  title?: string;
 }
 
 export interface BrowserFactory {
@@ -152,10 +156,12 @@ export async function renderPdf(
     }
   }
 
-  const themeId = options.themeId ?? "executive";
+  const frontmatter = extractFrontmatter(options.markdownSource);
+  const themeId = options.themeId ?? frontmatter.theme ?? "executive";
+  const customCssPath = options.customCssPath ?? (typeof frontmatter.metadata.customCss === "string" ? frontmatter.metadata.customCss : undefined);
   const outputPath = await normalizePdfOutputPath(options.outputPath);
-  const title = options.title ?? (path.basename(outputPath, ".pdf") || "Docket Document");
-  const html = await assembleHtmlAsync(options.markdownSource, themeId, title);
+  const title = options.title ?? frontmatter.title ?? (path.basename(outputPath, ".pdf") || "Docket Document");
+  const html = await assembleHtmlAsync(options.markdownSource, themeId, title, customCssPath);
 
   if (options.dryRunHtmlPath) {
     await defaultFileSystem.writeTextAtomic(options.dryRunHtmlPath, html);
@@ -165,6 +171,7 @@ export async function renderPdf(
         outputPath: options.dryRunHtmlPath,
         bytes: stats.size,
         durationMs: Date.now() - startTime,
+        title,
       };
     }
   }
@@ -198,7 +205,7 @@ export async function renderPdf(
     });
     await fs.rename(temporaryPdfPath, outputPath);
     const stats = await fs.stat(outputPath);
-    return { outputPath, bytes: stats.size, durationMs: Date.now() - startTime };
+    return { outputPath, bytes: stats.size, durationMs: Date.now() - startTime, title };
   } catch (error) {
     try { await fs.unlink(temporaryPdfPath); } catch { /* best effort */ }
     if (error instanceof DocketError) {
@@ -207,6 +214,7 @@ export async function renderPdf(
     throw new PuppeteerRenderError(
       `PDF conversion failed: ${error instanceof Error ? error.message : String(error)}`,
       "Verify Chromium, fonts, output permissions, and available disk space.",
+      { cause: error },
     );
   } finally {
     if (page) {

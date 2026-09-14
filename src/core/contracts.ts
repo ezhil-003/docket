@@ -1,4 +1,8 @@
 import type { ThemeId } from "./themes";
+import type { LintResult } from "./lint";
+import type { DocketState } from "../tui/state";
+
+export type { DocketState };
 
 export interface FileSystemPort {
   readText(filePath: string): Promise<string>;
@@ -7,40 +11,38 @@ export interface FileSystemPort {
   exists(filePath: string): Promise<boolean>;
 }
 
-export interface SourceProvider {
-  load(): Promise<{ source: string; title: string }>;
+export interface DocumentMetadata {
+  title?: string;
+  theme?: ThemeId;
+  author?: string;
+  date?: string;
+  customCss?: string;
+  [key: string]: unknown;
 }
 
-export interface GeneratePdfRequest {
+export interface DocumentInspection {
+  title: string;
+  metadata: DocumentMetadata;
+  cleanMarkdown: string;
+  diagnostics: LintResult;
+}
+
+export interface RenderOptions {
   markdownSource: string;
   outputPath: string;
-  themeId: ThemeId;
+  themeId?: ThemeId;
+  customCssPath?: string;
   title?: string;
   dryRunHtmlPath?: string;
+  dryRunOnly?: boolean;
   skipLinting?: boolean;
+  signal?: AbortSignal;
+  timeoutMs?: number;
 }
 
-export type DocketCommand =
-  | { type: "generate-pdf"; request: GeneratePdfRequest }
-  | { type: "lint-document"; source: string }
-  | { type: "load-file"; path: string }
-  | { type: "set-theme"; themeId: ThemeId }
-  | { type: "cancel-operation" };
-
-export interface DocketState {
-  screen: "startup" | "workspace";
-  mode: "text" | "file";
-  source: string;
-  inputPath: string;
+export interface RenderResult {
   outputPath: string;
-  outputDirectory: string;
-  outputFilename: string;
-  themeId: ThemeId;
-  pdfTheme: ThemeId;
-  tuiTheme: ThemeId;
-  diagnosticsVisible: boolean;
-  messages: string[];
-  renderStatus: "idle" | "linting" | "rendering" | "success" | "error";
-  diagnostics?: import("./lint").LintResult;
-  error?: import("./errors").DocketError;
+  bytes: number;
+  durationMs: number;
+  title?: string;
 }

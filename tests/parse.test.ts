@@ -116,4 +116,15 @@ describe("Markdown Parser (parse.ts)", () => {
     expect(html).not.toContain("onclick");
     expect(html).toContain('href="#"');
   });
+
+  it("transforms GitHub-style alerts into executive callout boxes", () => {
+    const md = "> [!NOTE]\n> This is an important note.\n\n> [!WARNING]\n> Critical system warning.";
+    const html = parseMarkdown(md);
+    expect(html).toContain('class="callout callout-note"');
+    expect(html).toContain("NOTE");
+    expect(html).toContain("This is an important note.");
+    expect(html).toContain('class="callout callout-warning"');
+    expect(html).toContain("WARNING");
+    expect(html).toContain("Critical system warning.");
+  });
 });

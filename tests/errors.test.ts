@@ -50,4 +50,15 @@ describe("Docket Error Architecture & Formatters (errors.ts)", () => {
     expect(err.code).toBe("ERR_OUTPUT_PATH");
     expect(formatDocketError(err)).toContain("Choose a writable folder");
   });
+
+  it("should preserve error cause and stage across error subclasses", () => {
+    const originalError = new Error("Disk full");
+    const fileErr = new FileAccessError("/path/to/doc.pdf", "EACCES", { cause: originalError });
+    expect(fileErr.cause).toBe(originalError);
+    expect(fileErr.stage).toBe("fs");
+
+    const renderErr = new PuppeteerRenderError("Crash", "Reinstall", { cause: originalError });
+    expect(renderErr.cause).toBe(originalError);
+    expect(renderErr.stage).toBe("render");
+  });
 });

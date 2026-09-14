@@ -1,5 +1,14 @@
+import path from "node:path";
 import { describe, it, expect } from "vitest";
-import { loadThemeCss, loadThemeCssAsync, isValidThemeId, THEME_IDS, THEMES } from "../src/core/themes";
+import {
+  loadThemeCss,
+  loadThemeCssAsync,
+  resolveThemeCss,
+  resolveThemeCssSync,
+  isValidThemeId,
+  THEME_IDS,
+  THEMES,
+} from "../src/core/themes";
 
 describe("Theme Registry & CSS Loader (themes.ts)", () => {
   it("should validate all 6 official theme IDs including modern", () => {
@@ -51,5 +60,21 @@ describe("Theme Registry & CSS Loader (themes.ts)", () => {
       expect(css).not.toContain("-webkit-text-fill-color: transparent");
       expect(css).toContain(".page-break");
     }
+  });
+
+  it("resolves and appends custom CSS stylesheets cleanly", async () => {
+    const fixturePath = path.join(__dirname, "fixtures/custom.css");
+    const mergedCss = await resolveThemeCss("modern", fixturePath);
+    expect(mergedCss).toContain("Theme Preset: modern");
+    expect(mergedCss).toContain("Test Corporate Custom Theme");
+    expect(mergedCss).toContain("--color-accent: #ff6600;");
+    expect(mergedCss).toContain(".custom-watermark");
+
+    const syncMerged = resolveThemeCssSync("modern", fixturePath);
+    expect(syncMerged).toContain("--color-accent: #ff6600;");
+  });
+
+  it("throws FileAccessError when custom CSS path cannot be found", async () => {
+    await expect(resolveThemeCss("executive", "non-existent-style.css")).rejects.toThrow();
   });
 });

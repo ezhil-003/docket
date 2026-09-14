@@ -31,53 +31,84 @@ export class DocketError extends Error {
 }
 
 export class MarkdownLintError extends DocketError {
-  constructor(message: string, userHint = "Fix highlighted Markdown syntax errors before converting to PDF.") {
-    super(message, "ERR_MARKDOWN_LINT", userHint, false);
+  constructor(
+    message: string,
+    userHint = "Fix highlighted Markdown syntax errors before converting to PDF.",
+    options: { stage?: string; cause?: unknown } = {}
+  ) {
+    super(message, "ERR_MARKDOWN_LINT", userHint, false, { stage: "lint", ...options });
     this.name = "MarkdownLintError";
   }
 }
 
 export class ThemeNotFoundError extends DocketError {
-  constructor(themeId: string, availableThemes: string[]) {
+  constructor(
+    themeId: string,
+    availableThemes: string[],
+    options: { stage?: string; cause?: unknown } = {}
+  ) {
     super(
       `Theme preset '${themeId}' was not found.`,
       "ERR_THEME_NOT_FOUND",
       `Available themes: ${availableThemes.join(", ")}`,
-      false
+      false,
+      { stage: "theme", ...options }
     );
     this.name = "ThemeNotFoundError";
   }
 }
 
 export class PuppeteerRenderError extends DocketError {
-  constructor(message: string, userHint = "Ensure Chromium/Chrome is installed or set PUPPETEER_EXECUTABLE_PATH.") {
-    super(message, "ERR_PUPPETEER_RENDER", userHint, true);
+  constructor(
+    message: string,
+    userHint = "Ensure Chromium/Chrome is installed or set PUPPETEER_EXECUTABLE_PATH.",
+    options: { stage?: string; cause?: unknown } = {}
+  ) {
+    super(message, "ERR_PUPPETEER_RENDER", userHint, true, { stage: "render", ...options });
     this.name = "PuppeteerRenderError";
   }
 }
 
 export class FileAccessError extends DocketError {
-  constructor(filePath: string, reason: string) {
+  constructor(
+    filePath: string,
+    reason: string,
+    options: { stage?: string; cause?: unknown } = {}
+  ) {
     super(
       `Cannot access file '${filePath}': ${reason}`,
       "ERR_FILE_ACCESS",
       "Check file path spelling, existence, and permissions.",
-      false
+      false,
+      { stage: "fs", ...options }
     );
     this.name = "FileAccessError";
   }
 }
 
 export class CliUsageError extends DocketError {
-  constructor(message: string, userHint = "Run 'docket --help' to see valid options.") {
-    super(message, "ERR_CLI_USAGE", userHint, false, { stage: "cli" });
+  constructor(
+    message: string,
+    userHint = "Run 'docket --help' to see valid options.",
+    options: { stage?: string; cause?: unknown } = {}
+  ) {
+    super(message, "ERR_CLI_USAGE", userHint, false, { stage: "cli", ...options });
     this.name = "CliUsageError";
   }
 }
 
 export class OutputPathError extends DocketError {
-  constructor(message: string) {
-    super(message, "ERR_OUTPUT_PATH", "Choose a writable folder and provide a PDF filename such as report.pdf.", false, { stage: "output" });
+  constructor(
+    message: string,
+    options: { stage?: string; cause?: unknown } = {}
+  ) {
+    super(
+      message,
+      "ERR_OUTPUT_PATH",
+      "Choose a writable folder and provide a PDF filename such as report.pdf.",
+      false,
+      { stage: "output", ...options }
+    );
     this.name = "OutputPathError";
   }
 }

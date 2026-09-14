@@ -8,8 +8,8 @@
   <p>
     <img src="https://img.shields.io/badge/runtime-Bun-000000?style=flat&logo=bun&logoColor=white" alt="Bun" />
     <img src="https://img.shields.io/badge/language-TypeScript-3178C6?style=flat&logo=typescript&logoColor=white" alt="TypeScript" />
-    <img src="https://img.shields.io/badge/tests-58%20passing-22c55e?style=flat" alt="58 tests passing" />
-    <img src="https://img.shields.io/badge/version-1.4.0-blue?style=flat" alt="Version 1.4.0" />
+    <img src="https://img.shields.io/badge/tests-69%20passing-22c55e?style=flat" alt="69 tests passing" />
+    <img src="https://img.shields.io/badge/version-1.4.1-blue?style=flat" alt="Version 1.4.1" />
     <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-8b5cf6?style=flat" alt="MIT License" /></a>
   </p>
 
@@ -39,13 +39,14 @@ Write in the terminal, open an existing document, or pipe Markdown from another 
 
 | Area | What you get |
 | --- | --- |
-| Markdown & Code | `markdown-it` parsing with `shiki` syntax highlighting, language badges, multi-syntax page breaks (`\newpage`, `<!-- pagebreak -->`), tables, links, code blocks, lists, blockquotes, and safe HTML |
+| Markdown & Code | `markdown-it` parsing with `shiki` syntax highlighting, language badges, YAML frontmatter extraction, GitHub alerts/callouts (`> [!NOTE]`), multi-syntax page breaks (`\newpage`, `<!-- pagebreak -->`), tables, links, and safe HTML |
 | Editor & Syntax | Real-time token highlighting across 6 themes, gutter line numbers, and inline error (`✖`) / warning (`▲`) markers |
 | Diagnostics | Debounced linting with rule IDs, line numbers, severities, and actionable suggestions |
 | PDF output | Puppeteer Chromium rendering with A4 sizing, margin-safe contract, font readiness checks, and atomic publication |
-| Themes | Independent PDF themes (`modern`, `executive`, `technical`, `legal`, `boardroom`, `minimal`) & TUI interface palettes |
+| Themes & Custom CSS | Independent PDF themes (`modern`, `executive`, `technical`, `legal`, `boardroom`, `minimal`), custom CSS overrides (`--css`), & TUI palettes |
+| Watch Mode | Continuous compilation (`-w, --watch`) monitoring Markdown & CSS changes with debounced re-renders |
 | TUI | Full-height canvas, scrollable sidebar, native Finder dialogs, centered action buttons, `Ctrl+S` buffer saving, and responsive layouts |
-| Reliability | Recoverable browser lifecycle, async cold-cache theme loading, cancellation, and graceful crash handling |
+| Reliability | Recoverable browser lifecycle, async cold-cache theme loading, cancellation, error cause preservation, and graceful crash handling |
 
 ## Installation
 
@@ -60,7 +61,7 @@ curl -fsSL https://raw.githubusercontent.com/ezhil-003/docket/main/scripts/insta
 To install a pinned release or use a custom install directory:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/ezhil-003/docket/main/scripts/install.sh | bash -s -- --version v1.4.0 --dir "$HOME/.local/bin"
+curl -fsSL https://raw.githubusercontent.com/ezhil-003/docket/main/scripts/install.sh | bash -s -- --version v1.4.1 --dir "$HOME/.local/bin"
 ```
 
 The installer supports `linux-x64`, `darwin-x64`, and `darwin-arm64`. It fails closed when the release checksum is missing or invalid.
@@ -113,6 +114,12 @@ The startup screen lets you paste Markdown or open a file. The workspace places 
 # Convert a Markdown file
 docket document.md --theme modern --output report.pdf
 
+# Auto-recompile on save (watch mode)
+docket document.md --watch
+
+# Apply custom corporate styling and document title
+docket report.md --css brand.css --title "Executive Review 2026"
+
 # Read Markdown from STDIN
 cat document.md | docket --paste --theme technical --output report.pdf
 
@@ -137,10 +144,14 @@ docket document.md --dry-run report.html
 | Flag | Description | Default |
 | --- | --- | --- |
 | `-t, --theme <theme>` | `modern`, `executive`, `technical`, `legal`, `boardroom`, or `minimal` | `executive` |
-| `-o, --output <file.pdf>` | Destination PDF path; directories receive `docket-output.pdf` | Input name + `.pdf` |
+| `-o, --output <file.pdf>` | Destination PDF path; directories receive `<title>.pdf` | Input name + `.pdf` |
+| `--title <name>` | Override document title in PDF metadata | Frontmatter / H1 / filename |
+| `--css <file.css>` | Apply custom CSS stylesheet or corporate tokens | — |
+| `-w, --watch` | Watch input file and auto-recompile PDF on change | `false` |
 | `-p, --paste` | Read Markdown from STDIN | `false` |
 | `--force` | Bypass lint error gates | `false` |
 | `--dry-run <out.html>` | Export intermediate HTML without browser rendering | — |
+| `-v, --version` | Display Docket version | — |
 | `-h, --help` | Display usage | — |
 
 ## Themes

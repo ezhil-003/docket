@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { OutputPathError } from "./errors";
+import { extractFrontmatter } from "./frontmatter";
 
 export function resolvePdfOutputPath(directory: string, filename: string): string {
   const cleanDirectory = directory.trim() || ".";
@@ -24,7 +25,7 @@ export async function normalizePdfOutputPath(outputPath: string, defaultFilename
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code;
     if (code !== "ENOENT") {
-      throw new OutputPathError(`Cannot inspect output path '${outputPath}'.`);
+      throw new OutputPathError(`Cannot inspect output path '${outputPath}'.`, { cause: error });
     }
   }
   const directory = path.dirname(resolved);
@@ -32,20 +33,30 @@ export async function normalizePdfOutputPath(outputPath: string, defaultFilename
   return resolvePdfOutputPath(directory, filename);
 }
 
-/** Extracts a clean PDF filename slug from the first Markdown heading or subheading. */
-export function derivePdfFilename(source: string, defaultName = "docket-output.pdf"): string {
-  if (!source) return defaultName;
-  const h1Match = source.match(/^#\s+(.+)$/m);
-  const target = h1Match?.[1] ?? source.match(/^##\s+(.+)$/m)?.[1];
-  if (!target) return defaultName;
-
-  const slug = target
+function slugify(text: string): string {
+  return text
     .replace(/[#*`~_\[\]()!<>|]/g, "")
     .trim()
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 48);
+}
 
+/** Extracts a clean PDF filename slug from frontmatter title, or first Markdown heading or subheading. */
+export function derivePdfFilename(source: string, defaultName = "docket-output.pdf"): string {
+  if (!source) return defaultName;
+
+  const { title, body } = extractFrontmatter(source);
+  if (title && title.trim().length > 0) {
+    const slug = slugify(title);
+    if (slug.length > 0) return `${slug}.pdf`;
+  }
+
+  const h1Match = body.match(/^#\s+(.+)$/m);
+  const target = h1Match?.[1] ?? body.match(/^##\s+(.+)$/m)?.[1];
+  if (!target) return defaultName;
+
+  const slug = slugify(target);
   return slug.length > 0 ? `${slug}.pdf` : defaultName;
 }

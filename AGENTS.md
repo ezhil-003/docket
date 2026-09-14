@@ -23,22 +23,23 @@ Welcome! This document provides operational guidelines, architecture layout, and
 ├── LICENSE                 # MIT License
 ├── README.md               # User documentation & feature overview
 ├── CHANGELOG.md            # Release history and changelogs
-├── package.json            # Scripts & dependencies (v1.4.0)
+├── package.json            # Scripts & dependencies (v1.4.1)
 ├── tsconfig.json           # TypeScript configuration
 ├── sample.md               # Sample Markdown document for testing
 ├── src/
-│   ├── cli.ts              # Non-interactive CLI entry point (arg parsing, STDIN piping)
+│   ├── cli.ts              # Non-interactive CLI entry point (arg parsing, STDIN piping, watch mode)
 │   ├── core/
 │   │   ├── assemble.ts     # Markdown to HTML document assembly wrapper
-│   │   ├── contracts.ts    # Core TypeScript types & state interfaces
-│   │   ├── errors.ts       # Structured error hierarchy
+│   │   ├── contracts.ts    # Core TypeScript types & document contracts
+│   │   ├── errors.ts       # Structured error hierarchy with cause preservation
+│   │   ├── frontmatter.ts  # Native YAML frontmatter metadata extraction & stripping
 │   │   ├── fs.ts           # Atomic file system adapter
 │   │   ├── lint.ts         # Real-time Markdown linter engine
 │   │   ├── native-picker.ts# Native macOS Finder folder/file dialogs (AppleScript)
 │   │   ├── output.ts       # Output path resolution & heading-derived filenames
-│   │   ├── parse.ts        # Markdown-it instance & Shiki syntax highlighting
+│   │   ├── parse.ts        # Markdown-it instance, callouts & Shiki syntax highlighting
 │   │   ├── render.ts       # Puppeteer page rendering & PDF output logic
-│   │   └── themes.ts       # Theme registry & theme resolution helpers
+│   │   └── themes.ts       # Theme registry, custom CSS resolution & loader
 │   ├── themes/             # CSS styling presets
 │   │   ├── _base.css       # Core design system tokens, container padding & layout resets
 │   │   ├── modern.css      # Modern Indigo / Catppuccin Mocha styling
@@ -50,9 +51,9 @@ Welcome! This document provides operational guidelines, architecture layout, and
 │   └── tui/
 │       ├── app.ts          # Interactive OpenTUI terminal UI frontend
 │       ├── layout.ts       # Responsive layout metrics
-│       ├── state.ts        # Pure reducer state machine
+│       ├── state.ts        # Pure reducer state machine & DocketState
 │       └── theme.ts        # Multi-theme palettes & SyntaxStyle builder
-└── tests/                  # Vitest test suite (50+ tests)
+└── tests/                  # Vitest test suite (70+ tests)
 ```
 
 ---

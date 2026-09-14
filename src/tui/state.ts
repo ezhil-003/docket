@@ -1,7 +1,24 @@
-import type { DocketState } from "../core/contracts";
 import type { DocketError } from "../core/errors";
 import type { LintResult } from "../core/lint";
 import type { ThemeId } from "../core/themes";
+
+export interface DocketState {
+  screen: "startup" | "workspace";
+  mode: "text" | "file";
+  source: string;
+  inputPath: string;
+  outputPath: string;
+  outputDirectory: string;
+  outputFilename: string;
+  themeId: ThemeId;
+  pdfTheme: ThemeId;
+  tuiTheme: ThemeId;
+  diagnosticsVisible: boolean;
+  messages: string[];
+  renderStatus: "idle" | "linting" | "rendering" | "success" | "error";
+  diagnostics?: LintResult;
+  error?: DocketError;
+}
 
 export type TuiEvent =
   | { type: "enter-workspace" }

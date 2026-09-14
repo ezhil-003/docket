@@ -1,18 +1,22 @@
 #!/usr/bin/env bun
+import fs from "node:fs";
 import path from "node:path";
 import { renderPdf, shutdownRenderer } from "./core/render";
 import { THEME_IDS, THEMES, isValidThemeId, type ThemeId } from "./core/themes";
 import { lintMarkdown } from "./core/lint";
 import { CliUsageError, formatDocketError } from "./core/errors";
 import { NodeFileSystem } from "./core/fs";
-import { runTuiApp } from "./tui/app";
 
+const VERSION = "1.4.1";
 const fileSystem = new NodeFileSystem();
 
 export interface CliOptions {
   themeId: ThemeId;
   outputPath?: string;
   inputPath?: string;
+  title?: string;
+  customCssPath?: string;
+  watch: boolean;
   paste: boolean;
   forceLint: boolean;
   dryRunHtmlPath?: string;
@@ -20,7 +24,7 @@ export interface CliOptions {
 
 export function getHelpText(): string {
   return `
-Docket - Production-Grade Executive Markdown → PDF Engine
+Docket - Production-Grade Executive Markdown → PDF Engine (v${VERSION})
 
 USAGE:
   $ docket                     Launch interactive TUI workspace
@@ -31,9 +35,13 @@ OPTIONS:
   -t, --theme <theme>      Select theme preset (default: executive)
                            Available themes: ${THEME_IDS.join(", ")}
   -o, --output <file.pdf>  Output PDF file path (default: <input>.pdf or docket-output.pdf)
+  --title <name>           Override document title in PDF metadata
+  --css <file.css>         Apply custom CSS stylesheet or corporate tokens
+  -w, --watch              Watch input file and auto-recompile PDF on change
   -p, --paste              Read Markdown content directly from STDIN
   --dry-run <out.html>     Export intermediate HTML document without starting Chromium
   --force                  Bypass pre-conversion linting error gates
+  -v, --version            Display Docket version
   -h, --help               Show this help message
 
 THEMES:
@@ -41,15 +49,21 @@ ${Object.values(THEMES).map((theme) => `  * ${theme.id.padEnd(12)} : ${theme.des
 
 EXAMPLES:
   $ docket document.md -t modern -o modern_report.pdf
+  $ docket report.md --css brand.css --title "Executive Review" -w
   $ cat changelog.md | docket --paste -t technical -o release.pdf
 `;
 }
 
-export function parseCliArgs(argv: readonly string[]): CliOptions | "help" {
+export function parseCliArgs(argv: readonly string[]): CliOptions | "help" | "version" {
   if (argv.includes("-h") || argv.includes("--help")) return "help";
+  if (argv.includes("-v") || argv.includes("--version")) return "version";
+
   let themeId: ThemeId = "executive";
   let outputPath: string | undefined;
   let inputPath: string | undefined;
+  let title: string | undefined;
+  let customCssPath: string | undefined;
+  let watch = false;
   let paste = false;
   let forceLint = false;
   let dryRunHtmlPath: string | undefined;
@@ -69,6 +83,12 @@ export function parseCliArgs(argv: readonly string[]): CliOptions | "help" {
       themeId = value;
     } else if (arg === "-o" || arg === "--output") {
       outputPath = requireValue(index++, arg);
+    } else if (arg === "--title") {
+      title = requireValue(index++, arg);
+    } else if (arg === "--css") {
+      customCssPath = requireValue(index++, arg);
+    } else if (arg === "-w" || arg === "--watch") {
+      watch = true;
     } else if (arg === "--dry-run") {
       dryRunHtmlPath = requireValue(index++, arg);
     } else if (arg === "-p" || arg === "--paste") {
@@ -85,7 +105,19 @@ export function parseCliArgs(argv: readonly string[]): CliOptions | "help" {
   }
 
   if (paste && inputPath) throw new CliUsageError("Use either an input file or --paste, not both.");
-  return { themeId, outputPath, inputPath, paste, forceLint, dryRunHtmlPath };
+  if (watch && paste) throw new CliUsageError("Watch mode requires an input file and cannot be used with STDIN --paste.");
+
+  return {
+    themeId,
+    outputPath,
+    inputPath,
+    title,
+    customCssPath,
+    watch,
+    paste,
+    forceLint,
+    dryRunHtmlPath,
+  };
 }
 
 export async function readStdin(maxBytes = 25 * 1024 * 1024): Promise<string> {
@@ -100,6 +132,101 @@ export async function readStdin(maxBytes = 25 * 1024 * 1024): Promise<string> {
   return Buffer.concat(chunks).toString("utf8");
 }
 
+async function runWatchMode(parsed: CliOptions): Promise<void> {
+  if (!parsed.inputPath) {
+    throw new CliUsageError("Watch mode requires an input file path.");
+  }
+  const resolvedInput = path.resolve(parsed.inputPath);
+  console.log(`[docket] Watching '${parsed.inputPath}' for changes... (Press Ctrl+C to exit)`);
+
+  let isRendering = false;
+  let reRenderPending = false;
+
+  const executeRender = async () => {
+    if (isRendering) {
+      reRenderPending = true;
+      return;
+    }
+    isRendering = true;
+    try {
+      const markdownSource = await fileSystem.readText(resolvedInput);
+      const docTitle = parsed.title ?? path.basename(resolvedInput, path.extname(resolvedInput));
+      const outPath = parsed.outputPath ?? `${docTitle}.pdf`;
+
+      const lintResult = lintMarkdown(markdownSource);
+      if (!lintResult.isValid && !parsed.forceLint) {
+        console.error(`\n[docket] Pre-conversion linting failed with ${lintResult.errors.length} error(s):`);
+        for (const error of lintResult.errors) {
+          console.error(`  🔴 Line ${error.line} [${error.ruleId}]: ${error.message}`);
+        }
+        return;
+      }
+
+      const result = await renderPdf({
+        markdownSource,
+        themeId: parsed.themeId,
+        outputPath: outPath,
+        title: parsed.title,
+        customCssPath: parsed.customCssPath,
+        dryRunHtmlPath: parsed.dryRunHtmlPath,
+        dryRunOnly: Boolean(parsed.dryRunHtmlPath),
+        skipLinting: parsed.forceLint,
+      });
+
+      const timestamp = new Date().toLocaleTimeString();
+      console.log(`[${timestamp}] ✓ Re-rendered ${result.outputPath} (${(result.bytes / 1024).toFixed(1)} KB, ${(result.durationMs / 1000).toFixed(2)}s)`);
+    } catch (error) {
+      console.error(`[docket] Re-render error:`, formatDocketError(error));
+    } finally {
+      isRendering = false;
+      if (reRenderPending) {
+        reRenderPending = false;
+        void executeRender();
+      }
+    }
+  };
+
+  // Run initial render
+  await executeRender();
+
+  let debounceTimer: ReturnType<typeof setTimeout> | undefined;
+  const triggerDebounced = () => {
+    if (debounceTimer) clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+      void executeRender();
+    }, 200);
+  };
+
+  const watcher = fs.watch(resolvedInput, (eventType) => {
+    if (eventType === "change" || eventType === "rename") {
+      triggerDebounced();
+    }
+  });
+
+  let cssWatcher: fs.FSWatcher | undefined;
+  if (parsed.customCssPath && fs.existsSync(parsed.customCssPath)) {
+    cssWatcher = fs.watch(path.resolve(parsed.customCssPath), (eventType) => {
+      if (eventType === "change" || eventType === "rename") {
+        triggerDebounced();
+      }
+    });
+  }
+
+  // Await SIGINT/SIGTERM
+  await new Promise<void>((resolve) => {
+    process.once("SIGINT", () => {
+      watcher.close();
+      cssWatcher?.close();
+      resolve();
+    });
+    process.once("SIGTERM", () => {
+      watcher.close();
+      cssWatcher?.close();
+      resolve();
+    });
+  });
+}
+
 export async function main(argv = process.argv.slice(2)): Promise<number> {
   try {
     const parsed = parseCliArgs(argv);
@@ -107,16 +234,26 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
       console.log(getHelpText());
       return 0;
     }
+    if (parsed === "version") {
+      console.log(`Docket v${VERSION}`);
+      return 0;
+    }
     if (!parsed.paste && !parsed.inputPath) {
       if (process.stdin.isTTY) {
+        const { runTuiApp } = await import("./tui/app");
         await runTuiApp();
         return 0;
       }
       parsed.paste = true;
     }
 
+    if (parsed.watch) {
+      await runWatchMode(parsed);
+      return 0;
+    }
+
     let markdownSource: string;
-    let title = "Docket Document";
+    let title = parsed.title ?? "Docket Document";
     let outputPath = parsed.outputPath;
     if (parsed.paste) {
       console.log("[docket] Reading Markdown from STDIN...");
@@ -125,7 +262,7 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
     } else {
       const inputPath = parsed.inputPath as string;
       markdownSource = await fileSystem.readText(inputPath);
-      title = path.basename(inputPath, path.extname(inputPath));
+      title = parsed.title ?? path.basename(inputPath, path.extname(inputPath));
       outputPath ??= `${title}.pdf`;
     }
 
@@ -149,6 +286,7 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
       themeId: parsed.themeId,
       outputPath: outputPath as string,
       title,
+      customCssPath: parsed.customCssPath,
       dryRunHtmlPath: parsed.dryRunHtmlPath,
       dryRunOnly: Boolean(parsed.dryRunHtmlPath),
       skipLinting: parsed.forceLint,

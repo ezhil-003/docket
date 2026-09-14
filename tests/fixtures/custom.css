@@ -1,0 +1,9 @@
+/* Test Corporate Custom Theme */
+:root {
+  --color-accent: #ff6600;
+  --color-primary: #111111;
+}
+
+.custom-watermark {
+  opacity: 0.1;
+}

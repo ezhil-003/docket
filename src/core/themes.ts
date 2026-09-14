@@ -144,3 +144,48 @@ export function clearThemeCssCache(): void {
   cssCache.clear();
   asyncCssLoads.clear();
 }
+
+import { FileAccessError } from "./errors";
+
+/**
+ * Resolves full CSS for a document, merging the chosen theme preset with an optional custom CSS file.
+ */
+export async function resolveThemeCss(
+  themeId: ThemeId = "executive",
+  customCssPath?: string
+): Promise<string> {
+  const baseThemeCss = await loadThemeCssAsync(themeId);
+  if (!customCssPath) return baseThemeCss;
+
+  const resolvedPath = path.resolve(customCssPath);
+  try {
+    const customContent = await fsp.readFile(resolvedPath, "utf-8");
+    return `${baseThemeCss}\n\n/* Custom Stylesheet: ${path.basename(resolvedPath)} */\n${customContent}`;
+  } catch (error) {
+    throw new FileAccessError(
+      resolvedPath,
+      `Cannot read custom CSS file: ${error instanceof Error ? error.message : String(error)}`,
+      { cause: error }
+    );
+  }
+}
+
+export function resolveThemeCssSync(
+  themeId: ThemeId = "executive",
+  customCssPath?: string
+): string {
+  const baseThemeCss = loadThemeCss(themeId);
+  if (!customCssPath) return baseThemeCss;
+
+  const resolvedPath = path.resolve(customCssPath);
+  try {
+    const customContent = fs.readFileSync(resolvedPath, "utf-8");
+    return `${baseThemeCss}\n\n/* Custom Stylesheet: ${path.basename(resolvedPath)} */\n${customContent}`;
+  } catch (error) {
+    throw new FileAccessError(
+      resolvedPath,
+      `Cannot read custom CSS file: ${error instanceof Error ? error.message : String(error)}`,
+      { cause: error }
+    );
+  }
+}

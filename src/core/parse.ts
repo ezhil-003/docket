@@ -2,6 +2,8 @@ import MarkdownIt from "markdown-it";
 import { createHighlighter, type Highlighter } from "shiki";
 import type { ThemeId } from "./themes";
 
+import { extractFrontmatter } from "./frontmatter";
+
 export const SHIKI_THEME_MAP: Record<ThemeId, string> = {
   executive: "dark-plus",
   modern: "catppuccin-mocha",
@@ -63,9 +65,6 @@ export function getHighlighterInstance(): Promise<Highlighter> {
   }
   return highlighterPromise;
 }
-
-// Background pre-warm
-void getHighlighterInstance();
 
 function escapeCodeHtml(str: string): string {
   return str
@@ -189,6 +188,35 @@ export function preprocessPageBreaks(markdown: string): string {
   return transformed.join("\n");
 }
 
+const CALLOUT_ICONS: Record<string, string> = {
+  NOTE: "ℹ️",
+  TIP: "💡",
+  IMPORTANT: "❗",
+  WARNING: "⚠️",
+  CAUTION: "🛑",
+};
+
+export function processCallouts(html: string): string {
+  return html.replace(
+    /<blockquote>\s*<p>\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\](?:\s*<br\s*\/?>|\s*\n)?([\s\S]*?)<\/blockquote>/gi,
+    (_, type: string, rest: string) => {
+      const upperType = type.toUpperCase();
+      const lowerType = type.toLowerCase();
+      const icon = CALLOUT_ICONS[upperType] ?? "ℹ️";
+      const cleanRest = rest.trim();
+      return `<div class="callout callout-${lowerType}" role="alert">
+  <div class="callout-header">
+    <span class="callout-icon">${icon}</span>
+    <span class="callout-title">${upperType}</span>
+  </div>
+  <div class="callout-body">
+    <p>${cleanRest}
+  </div>
+</div>`;
+    }
+  );
+}
+
 /**
  * Parses Markdown raw text string into sanitized HTML body content.
  */
@@ -196,9 +224,15 @@ export function parseMarkdown(source: string, themeId: ThemeId = "executive"): s
   if (!source || source.trim().length === 0) {
     return "<p><em>[Empty Document]</em></p>";
   }
-  const processed = preprocessPageBreaks(source);
+  const { body } = extractFrontmatter(source);
+  if (!body || body.trim().length === 0) {
+    return "<p><em>[Empty Document]</em></p>";
+  }
+  const processed = preprocessPageBreaks(body);
   const md = getMarkdownParser(themeId);
-  return sanitizeRenderedHtml(md.render(processed));
+  const rendered = md.render(processed);
+  const withCallouts = processCallouts(rendered);
+  return sanitizeRenderedHtml(withCallouts);
 }
 
 /**

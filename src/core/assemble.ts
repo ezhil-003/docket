@@ -1,5 +1,5 @@
 import { parseMarkdown, parseMarkdownAsync } from "./parse";
-import { loadThemeCss, loadThemeCssAsync, type ThemeId } from "./themes";
+import { resolveThemeCss, resolveThemeCssSync, type ThemeId } from "./themes";
 
 function escapeHtml(str: string): string {
   return str
@@ -36,20 +36,26 @@ ${bodyHtml}
 export function assembleHtml(
   markdownSource: string,
   themeId: ThemeId = "executive",
-  title = "Docket Document"
+  title = "Docket Document",
+  customCssPath?: string
 ): string {
-  return renderDocument(parseMarkdown(markdownSource, themeId), loadThemeCss(themeId), title);
+  return renderDocument(
+    parseMarkdown(markdownSource, themeId),
+    resolveThemeCssSync(themeId, customCssPath),
+    title
+  );
 }
 
 /** Non-blocking variant used by renderPdf while retaining the sync API above. */
 export async function assembleHtmlAsync(
   markdownSource: string,
   themeId: ThemeId = "executive",
-  title = "Docket Document"
+  title = "Docket Document",
+  customCssPath?: string
 ): Promise<string> {
   const [bodyHtml, css] = await Promise.all([
     parseMarkdownAsync(markdownSource, themeId),
-    loadThemeCssAsync(themeId),
+    resolveThemeCss(themeId, customCssPath),
   ]);
   return renderDocument(bodyHtml, css, title);
 }

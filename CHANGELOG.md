@@ -8,6 +8,25 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 No changes yet.
 
+## [1.4.1] — 2026-09-14
+
+### Added
+
+- **Native YAML Frontmatter Engine (`src/core/frontmatter.ts`)**: Automatic parsing of document YAML frontmatter (`title`, `author`, `theme`, `date`, `css`). Frontmatter headers are cleanly extracted and stripped from the document body, preventing `markdown-it` from rendering metadata as unintended `<hr>` rules and Setext `<h2>` headings. Extracted titles automatically populate PDF document metadata and file slugs.
+- **GitHub-Flavored Executive Callout Boxes**: Support for standard callout alert syntax (`> [!NOTE]`, `> [!TIP]`, `> [!IMPORTANT]`, `> [!WARNING]`, `> [!CAUTION]`) rendered with distinct executive accent colors, typography badges, and icons (`ℹ️`, `💡`, `❗`, `⚠️`, `🛑`). Fully compliant with the CSS Paged Media pagination contract (`break-inside: avoid; page-break-inside: avoid;`).
+- **Custom CSS & Brand Token Injection (`--css <file.css>`)**: Ability to inject custom corporate brand stylesheets or override CSS variables via CLI flag or frontmatter `css:` declarations.
+- **Document Title Override (`--title <name>`)**: New CLI flag to explicitly set the document title in PDF metadata without altering headings.
+- **Live Re-compilation Watch Mode (`-w, --watch`)**: Watch mode for authoring workflows that monitors the input Markdown file and any active custom CSS stylesheet, automatically re-rendering upon saved changes with debouncing.
+- **Version Flag (`-v, --version`)**: Standard version CLI option printing `Docket v1.4.1`.
+
+### Changed
+
+- **Core Contracts & Architectural Hardening**: Removed dead phantom interfaces (`SourceProvider`, `GeneratePdfRequest`, `DocketCommand`) from `src/core/contracts.ts`. Relocated UI presentation state (`DocketState`) to `src/tui/state.ts`, decoupling headless PDF generation from the OpenTUI terminal interface.
+- **Error Cause & Stage Preservation**: Updated all custom error subclasses (`MarkdownLintError`, `ThemeNotFoundError`, `PuppeteerRenderError`, `FileAccessError`, `OutputPathError`, `CliUsageError`) to preserve original caught error `cause` and assign execution `stage` for clear diagnostics.
+- **Lazy Highlighting & TUI Loading**: Removed eager background initialization of Shiki grammars on module import in `src/core/parse.ts` and made OpenTUI dynamically loaded on demand in `src/cli.ts`, accelerating CLI cold starts.
+- **Sample Document Modernization**: Updated `sample.md` to demonstrate YAML frontmatter, GitHub-style callouts, and modern syntax.
+- Bumped version to `1.4.1` across `package.json`, binary builds, documentation, and TUI status headers.
+
 ## [1.4.0] — 2026-09-14
 
 ### Added
