@@ -1,3 +1,5 @@
+import os from "node:os";
+
 export interface TuiLayout {
   width: number;
   height: number;
@@ -21,7 +23,7 @@ export function getTuiLayout(width: number, height: number): TuiLayout {
 }
 
 export function shortenPath(value: string, maxLength: number): string {
-  const home = process.env.HOME;
+  const home = os.homedir();
   const normalized = home && value.startsWith(home) ? `~${value.slice(home.length)}` : value;
   if (normalized.length <= maxLength) return normalized;
   const filename = normalized.split(/[\\/]/).at(-1) ?? normalized;

@@ -20,12 +20,13 @@ import { DocketError, formatDocketError } from "../core/errors";
 import { NodeFileSystem } from "../core/fs";
 import { resolvePdfOutputPath, derivePdfFilename } from "../core/output";
 import { pickFolderNative, pickFileNative } from "../core/native-picker";
+import { getStandardUserDir } from "../core/paths";
 import { initialTuiState, reduceTuiState, type TuiEvent } from "./state";
 import type { DocketState } from "../core/contracts";
 import { getTuiLayout, shortenPath } from "./layout";
 import { TUI_THEME, THEME_PALETTES, getTuiTheme, createSyntaxStyle, type TuiColorPalette } from "./theme";
 
-const VERSION = process.env.npm_package_version ?? "1.4.1";
+const VERSION = process.env.npm_package_version ?? "1.4.2";
 const defaultSampleMarkdown = `# Executive Briefing
 
 > **Status**: Docket Markdown Engine Deployed
@@ -165,15 +166,13 @@ export async function runTuiApp(): Promise<void> {
   const startupActions = new BoxRenderable(renderer, { flexDirection: "row", flexWrap: "wrap", gap: 1, width: "100%" });
   const startButton = makeButton(renderer, " ⚡ Start (Ctrl+Enter) ", () => startWorkspace("text"));
   const openButton = makeButton(renderer, " 📁 Open File (Ctrl+O) ", async () => {
-    if (process.platform === "darwin") {
-      const file = await pickFileNative();
-      if (file) {
-        startWorkspace("file");
-        filePath.value = file;
-        dispatch({ type: "set-input-path", path: file });
-        void loadFile();
-        return;
-      }
+    const file = await pickFileNative();
+    if (file) {
+      startWorkspace("file");
+      filePath.value = file;
+      dispatch({ type: "set-input-path", path: file });
+      void loadFile();
+      return;
     }
     startWorkspace("file");
   });
@@ -380,16 +379,14 @@ export async function runTuiApp(): Promise<void> {
   const filePathHeader = new BoxRenderable(renderer, { flexDirection: "row", justifyContent: "space-between", alignItems: "center", width: "100%" });
   filePathHeader.add(new TextRenderable(renderer, { content: "Source File", fg: TUI_THEME.muted }));
   const btnBrowseFile = makeMiniButton(renderer, " 🔍 Choose… ", async () => {
-    if (process.platform !== "darwin") {
-      addMessage("Native file picker is macOS-only. Type path directly.");
-      filePath.focus();
-      return;
-    }
     const file = await pickFileNative();
     if (file) {
       filePath.value = file;
       dispatch({ type: "set-input-path", path: file });
       void loadFile();
+    } else {
+      addMessage("No file selected. Enter file path directly.");
+      filePath.focus();
     }
   });
   filePathHeader.add(btnBrowseFile.box);
@@ -426,24 +423,22 @@ export async function runTuiApp(): Promise<void> {
   const outputDirHeader = new BoxRenderable(renderer, { flexDirection: "row", justifyContent: "space-between", alignItems: "center", width: "100%" });
   outputDirHeader.add(new TextRenderable(renderer, { content: "Folder", fg: TUI_THEME.muted }));
   const btnBrowseFolder = makeMiniButton(renderer, " 🔍 Choose… ", async () => {
-    if (process.platform !== "darwin") {
-      addMessage("Native folder picker is macOS-only. Type folder path directly.");
-      outputDirectory.focus();
-      return;
-    }
     const folder = await pickFolderNative();
     if (folder) {
       outputDirectory.value = folder;
       dispatch({ type: "set-output-directory", path: folder });
       addMessage(`Selected folder: ${shortenPath(folder, 48)}`);
+    } else {
+      addMessage("No folder selected. Enter folder path directly.");
+      outputDirectory.focus();
     }
   });
   outputDirHeader.add(btnBrowseFolder.box);
 
   const folderPresetsRow = new BoxRenderable(renderer, { flexDirection: "row", gap: 1, width: "100%", flexWrap: "wrap" });
   const presetCwd = makeMiniButton(renderer, " . ", () => setFolderPreset("."));
-  const presetDownloads = makeMiniButton(renderer, " ~/Downloads ", () => setFolderPreset("~/Downloads"));
-  const presetDocs = makeMiniButton(renderer, " ~/Docs ", () => setFolderPreset("~/Documents"));
+  const presetDownloads = makeMiniButton(renderer, " ~/Downloads ", () => setFolderPreset(getStandardUserDir("downloads")));
+  const presetDocs = makeMiniButton(renderer, " ~/Docs ", () => setFolderPreset(getStandardUserDir("documents")));
   const presetDist = makeMiniButton(renderer, " ./dist ", () => setFolderPreset("./dist"));
   folderPresetsRow.add(presetCwd.box);
   folderPresetsRow.add(presetDownloads.box);

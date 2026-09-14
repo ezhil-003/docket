@@ -8,8 +8,8 @@
   <p>
     <img src="https://img.shields.io/badge/runtime-Bun-000000?style=flat&logo=bun&logoColor=white" alt="Bun" />
     <img src="https://img.shields.io/badge/language-TypeScript-3178C6?style=flat&logo=typescript&logoColor=white" alt="TypeScript" />
-    <img src="https://img.shields.io/badge/tests-69%20passing-22c55e?style=flat" alt="69 tests passing" />
-    <img src="https://img.shields.io/badge/version-1.4.1-blue?style=flat" alt="Version 1.4.1" />
+    <img src="https://img.shields.io/badge/tests-80%20passing-22c55e?style=flat" alt="80 tests passing" />
+    <img src="https://img.shields.io/badge/version-1.4.2-blue?style=flat" alt="Version 1.4.2" />
     <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-8b5cf6?style=flat" alt="MIT License" /></a>
   </p>
 
@@ -31,7 +31,7 @@ Write in the terminal, open an existing document, or pipe Markdown from another 
 
 - **Readable by default** — a maximized terminal editor with live syntax highlighting (VS Code, Catppuccin, One Dark, Dracula, Tokyo Night), gutter line numbering with error signs, scrollable sidebar, and clickable action buttons.
 - **Publication-ready code blocks** — powered by `shiki` with VS Code `dark-plus` themes for crisp, beautiful code formatting in generated PDFs.
-- **Native OS Pickers** — 1-click macOS Finder dialogs for selecting folders and Markdown documents.
+- **Cross-Platform Native Pickers & Path Presets** — 1-click native OS dialogs (macOS Finder, Windows OpenFileDialog/FolderBrowserDialog, Linux Zenity/KDialog) and authentic OS user folder resolution (`~/Downloads`, `~/Documents`) with universal tilde (`~`) expansion.
 - **Safe to automate** — structured errors, signal handling, cancellation, browser recovery, bounded STDIN reads, and stable exit codes.
 - **Built for real documents** — margin-safe A4 output, font readiness checks, tables, code blocks, callouts, Markdown links, and 1,000-line documents.
 
@@ -45,7 +45,7 @@ Write in the terminal, open an existing document, or pipe Markdown from another 
 | PDF output | Puppeteer Chromium rendering with A4 sizing, margin-safe contract, font readiness checks, and atomic publication |
 | Themes & Custom CSS | Independent PDF themes (`modern`, `executive`, `technical`, `legal`, `boardroom`, `minimal`), custom CSS overrides (`--css`), & TUI palettes |
 | Watch Mode | Continuous compilation (`-w, --watch`) monitoring Markdown & CSS changes with debounced re-renders |
-| TUI | Full-height canvas, scrollable sidebar, native Finder dialogs, centered action buttons, `Ctrl+S` buffer saving, and responsive layouts |
+| TUI | Full-height canvas, scrollable sidebar, cross-platform native pickers (macOS/Windows/Linux), authentic Downloads/Docs presets, centered action buttons, `Ctrl+S` buffer saving, and responsive layouts |
 | Reliability | Recoverable browser lifecycle, async cold-cache theme loading, cancellation, error cause preservation, and graceful crash handling |
 
 ## Installation
@@ -61,7 +61,7 @@ curl -fsSL https://raw.githubusercontent.com/ezhil-003/docket/main/scripts/insta
 To install a pinned release or use a custom install directory:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/ezhil-003/docket/main/scripts/install.sh | bash -s -- --version v1.4.1 --dir "$HOME/.local/bin"
+curl -fsSL https://raw.githubusercontent.com/ezhil-003/docket/main/scripts/install.sh | bash -s -- --version v1.4.2 --dir "$HOME/.local/bin"
 ```
 
 The installer supports `linux-x64`, `darwin-x64`, and `darwin-arm64`. It fails closed when the release checksum is missing or invalid.

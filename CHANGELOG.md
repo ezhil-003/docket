@@ -8,6 +8,19 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 No changes yet.
 
+## [1.4.2] — 2026-09-14
+
+### Fixed
+
+- **Authentic OS User Directory Resolution & Tilde Expansion**: Fixed bug where clicking the TUI preset `~/Downloads` or specifying `~` in output paths created a literal folder named `~` in the working directory (`./~/Downloads`). Introduced `src/core/paths.ts` providing runtime discovery of standard OS user directories (macOS `os.homedir() / Downloads`, Windows `%USERPROFILE%\\Downloads`, and Linux Freedesktop XDG user-dirs `~/.config/user-dirs.dirs`).
+- **Universal Tilde (`~`) Path Expansion**: Integrated `expandHomeDir` across all filesystem entry points (`NodeFileSystem`, `resolvePdfOutputPath`, `normalizePdfOutputPath`, CLI inputs, CSS watchers, and custom stylesheets), ensuring paths like `~/Documents` resolve to authentic user home directories across macOS, Linux, and Windows.
+- **Accidental `./~` Directory Cleanup**: Removed accidental `./~` directory previously generated in the repository root.
+
+### Added
+
+- **Cross-Platform Native Dialogs**: Extended native file and folder pickers (`src/core/native-picker.ts`) beyond macOS `osascript` to Windows (PowerShell `FolderBrowserDialog` and `OpenFileDialog` via Windows Forms) and Linux (`zenity` GTK dialogs with fallback to `kdialog` Qt dialogs). Headless and unsupported environments fall back gracefully to inline text input.
+- **Cross-Platform Home Abbreviation**: Updated TUI layout path compressor (`shortenPath`) to use `os.homedir()` so Windows and Linux users also benefit from clean `~` path abbreviation.
+
 ## [1.4.1] — 2026-09-14
 
 ### Added

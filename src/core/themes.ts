@@ -146,6 +146,7 @@ export function clearThemeCssCache(): void {
 }
 
 import { FileAccessError } from "./errors";
+import { expandHomeDir } from "./paths";
 
 /**
  * Resolves full CSS for a document, merging the chosen theme preset with an optional custom CSS file.
@@ -157,7 +158,7 @@ export async function resolveThemeCss(
   const baseThemeCss = await loadThemeCssAsync(themeId);
   if (!customCssPath) return baseThemeCss;
 
-  const resolvedPath = path.resolve(customCssPath);
+  const resolvedPath = path.resolve(expandHomeDir(customCssPath));
   try {
     const customContent = await fsp.readFile(resolvedPath, "utf-8");
     return `${baseThemeCss}\n\n/* Custom Stylesheet: ${path.basename(resolvedPath)} */\n${customContent}`;
@@ -177,7 +178,7 @@ export function resolveThemeCssSync(
   const baseThemeCss = loadThemeCss(themeId);
   if (!customCssPath) return baseThemeCss;
 
-  const resolvedPath = path.resolve(customCssPath);
+  const resolvedPath = path.resolve(expandHomeDir(customCssPath));
   try {
     const customContent = fs.readFileSync(resolvedPath, "utf-8");
     return `${baseThemeCss}\n\n/* Custom Stylesheet: ${path.basename(resolvedPath)} */\n${customContent}`;

@@ -23,7 +23,7 @@ Welcome! This document provides operational guidelines, architecture layout, and
 ├── LICENSE                 # MIT License
 ├── README.md               # User documentation & feature overview
 ├── CHANGELOG.md            # Release history and changelogs
-├── package.json            # Scripts & dependencies (v1.4.1)
+├── package.json            # Scripts & dependencies (v1.4.2)
 ├── tsconfig.json           # TypeScript configuration
 ├── sample.md               # Sample Markdown document for testing
 ├── src/
@@ -35,9 +35,10 @@ Welcome! This document provides operational guidelines, architecture layout, and
 │   │   ├── frontmatter.ts  # Native YAML frontmatter metadata extraction & stripping
 │   │   ├── fs.ts           # Atomic file system adapter
 │   │   ├── lint.ts         # Real-time Markdown linter engine
-│   │   ├── native-picker.ts# Native macOS Finder folder/file dialogs (AppleScript)
+│   │   ├── native-picker.ts# Cross-platform native folder/file dialogs (macOS, Windows, Linux)
 │   │   ├── output.ts       # Output path resolution & heading-derived filenames
 │   │   ├── parse.ts        # Markdown-it instance, callouts & Shiki syntax highlighting
+│   │   ├── paths.ts        # Cross-platform home expansion & standard user directory discovery
 │   │   ├── render.ts       # Puppeteer page rendering & PDF output logic
 │   │   └── themes.ts       # Theme registry, custom CSS resolution & loader
 │   ├── themes/             # CSS styling presets

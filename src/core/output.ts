@@ -2,9 +2,10 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { OutputPathError } from "./errors";
 import { extractFrontmatter } from "./frontmatter";
+import { expandHomeDir } from "./paths";
 
 export function resolvePdfOutputPath(directory: string, filename: string): string {
-  const cleanDirectory = directory.trim() || ".";
+  const cleanDirectory = expandHomeDir(directory.trim() || ".");
   const cleanFilename = filename.trim();
   if (!cleanFilename) throw new OutputPathError("PDF filename cannot be empty.");
   if (cleanFilename !== path.basename(cleanFilename) || cleanFilename === "." || cleanFilename === "..") {
@@ -16,7 +17,7 @@ export function resolvePdfOutputPath(directory: string, filename: string): strin
 
 /** Accepts either a PDF filename or an existing directory for CLI/API callers. */
 export async function normalizePdfOutputPath(outputPath: string, defaultFilename = "docket-output.pdf"): Promise<string> {
-  const cleanPath = outputPath.trim();
+  const cleanPath = expandHomeDir(outputPath.trim());
   if (!cleanPath) throw new OutputPathError("PDF output path cannot be empty.");
   const resolved = path.resolve(cleanPath);
   try {

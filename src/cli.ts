@@ -6,8 +6,9 @@ import { THEME_IDS, THEMES, isValidThemeId, type ThemeId } from "./core/themes";
 import { lintMarkdown } from "./core/lint";
 import { CliUsageError, formatDocketError } from "./core/errors";
 import { NodeFileSystem } from "./core/fs";
+import { expandHomeDir } from "./core/paths";
 
-const VERSION = "1.4.1";
+const VERSION = "1.4.2";
 const fileSystem = new NodeFileSystem();
 
 export interface CliOptions {
@@ -136,7 +137,7 @@ async function runWatchMode(parsed: CliOptions): Promise<void> {
   if (!parsed.inputPath) {
     throw new CliUsageError("Watch mode requires an input file path.");
   }
-  const resolvedInput = path.resolve(parsed.inputPath);
+  const resolvedInput = path.resolve(expandHomeDir(parsed.inputPath));
   console.log(`[docket] Watching '${parsed.inputPath}' for changes... (Press Ctrl+C to exit)`);
 
   let isRendering = false;
@@ -204,12 +205,15 @@ async function runWatchMode(parsed: CliOptions): Promise<void> {
   });
 
   let cssWatcher: fs.FSWatcher | undefined;
-  if (parsed.customCssPath && fs.existsSync(parsed.customCssPath)) {
-    cssWatcher = fs.watch(path.resolve(parsed.customCssPath), (eventType) => {
-      if (eventType === "change" || eventType === "rename") {
-        triggerDebounced();
-      }
-    });
+  if (parsed.customCssPath) {
+    const resolvedCss = path.resolve(expandHomeDir(parsed.customCssPath));
+    if (fs.existsSync(resolvedCss)) {
+      cssWatcher = fs.watch(resolvedCss, (eventType) => {
+        if (eventType === "change" || eventType === "rename") {
+          triggerDebounced();
+        }
+      });
+    }
   }
 
   // Await SIGINT/SIGTERM
@@ -260,7 +264,7 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
       markdownSource = await readStdin();
       outputPath ??= "docket-output.pdf";
     } else {
-      const inputPath = parsed.inputPath as string;
+      const inputPath = expandHomeDir(parsed.inputPath as string);
       markdownSource = await fileSystem.readText(inputPath);
       title = parsed.title ?? path.basename(inputPath, path.extname(inputPath));
       outputPath ??= `${title}.pdf`;

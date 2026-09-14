@@ -30,4 +30,15 @@ describe("PDF output target handling", () => {
     expect(derivePdfFilename("No headings here")).toBe("docket-output.pdf");
     expect(derivePdfFilename("", "custom.pdf")).toBe("custom.pdf");
   });
+
+  it("expands tilde (~) paths to authentic home directory in resolvePdfOutputPath", () => {
+    const expected = path.join(os.homedir(), "Downloads", "report.pdf");
+    expect(resolvePdfOutputPath("~/Downloads", "report.pdf")).toBe(expected);
+  });
+
+  it("expands tilde (~) paths in normalizePdfOutputPath without creating literal tilde folders", async () => {
+    const target = "~/Downloads/docket-test-doc.pdf";
+    const normalized = await normalizePdfOutputPath(target);
+    expect(normalized).toBe(path.join(os.homedir(), "Downloads", "docket-test-doc.pdf"));
+  });
 });
