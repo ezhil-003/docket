@@ -8,8 +8,8 @@
   <p>
     <img src="https://img.shields.io/badge/runtime-Bun-000000?style=flat&logo=bun&logoColor=white" alt="Bun" />
     <img src="https://img.shields.io/badge/language-TypeScript-3178C6?style=flat&logo=typescript&logoColor=white" alt="TypeScript" />
-    <img src="https://img.shields.io/badge/tests-80%20passing-22c55e?style=flat" alt="80 tests passing" />
-    <img src="https://img.shields.io/badge/version-1.4.2-blue?style=flat" alt="Version 1.4.2" />
+    <img src="https://img.shields.io/badge/tests-83%20passing-22c55e?style=flat" alt="83 tests passing" />
+    <img src="https://img.shields.io/badge/version-1.5.0-blue?style=flat" alt="Version 1.5.0" />
     <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-8b5cf6?style=flat" alt="MIT License" /></a>
   </p>
 
@@ -23,12 +23,14 @@
 
 ## Docket
 
-Docket turns Markdown into polished, margin-safe executive PDFs. It combines a fast Bun/TypeScript CLI with a spacious OpenTUI workspace, live syntax highlighting, diagnostics, reusable themes, and a carefully isolated Puppeteer rendering pipeline with Shiki code styling.
+Docket turns Markdown into polished, margin-safe executive PDFs. It combines a fast Bun/TypeScript CLI with a spacious OpenTUI workspace, live syntax highlighting, diagnostics, reusable themes, and a zero-npm-dependency headless Chromium rendering pipeline powered by native Bun CDP and Shiki code styling.
 
 Write in the terminal, open an existing document, or pipe Markdown from another command. Docket validates the document, renders it with the selected visual system, and publishes the PDF atomically so incomplete files are never left behind.
 
 ### Why Docket
 
+- **100% Bun-Native Architecture** — Powered by `Bun.markdown` (Rust/Zig GFM engine, ~20x faster than markdown-it), `Bun.file`, `Bun.write`, and native Bun Shell (`$`).
+- **Zero-Dependency Headless Chromium Pipeline** — Replaces Puppeteer with a lightweight, native Chrome DevTools Protocol (CDP) client and automated `chrome-headless-shell` caching.
 - **Readable by default** — a maximized terminal editor with live syntax highlighting (VS Code, Catppuccin, One Dark, Dracula, Tokyo Night), gutter line numbering with error signs, scrollable sidebar, and clickable action buttons.
 - **Publication-ready code blocks** — powered by `shiki` with VS Code `dark-plus` themes for crisp, beautiful code formatting in generated PDFs.
 - **Cross-Platform Native Pickers & Path Presets** — 1-click native OS dialogs (macOS Finder, Windows OpenFileDialog/FolderBrowserDialog, Linux Zenity/KDialog) and authentic OS user folder resolution (`~/Downloads`, `~/Documents`) with universal tilde (`~`) expansion.
@@ -39,13 +41,13 @@ Write in the terminal, open an existing document, or pipe Markdown from another 
 
 | Area | What you get |
 | --- | --- |
-| Markdown & Code | `markdown-it` parsing with `shiki` syntax highlighting, language badges, YAML frontmatter extraction, GitHub alerts/callouts (`> [!NOTE]`), multi-syntax page breaks (`\newpage`, `<!-- pagebreak -->`), tables, links, and safe HTML |
+| Markdown & Code | Native `Bun.markdown` parsing (~20x speedup) with `shiki` syntax highlighting, language badges, YAML frontmatter extraction, GitHub alerts/callouts (`> [!NOTE]`), multi-syntax page breaks (`\newpage`, `<!-- pagebreak -->`), tables, links, and safe HTML |
 | Editor & Syntax | Real-time token highlighting across 6 themes, gutter line numbers, and inline error (`✖`) / warning (`▲`) markers |
 | Diagnostics | Debounced linting with rule IDs, line numbers, severities, and actionable suggestions |
-| PDF output | Puppeteer Chromium rendering with A4 sizing, margin-safe contract, font readiness checks, and atomic publication |
+| PDF output | Native Bun CDP Chromium driver with A4 sizing, margin-safe contract, font readiness checks, and atomic publication |
 | Themes & Custom CSS | Independent PDF themes (`modern`, `executive`, `technical`, `legal`, `boardroom`, `minimal`), custom CSS overrides (`--css`), & TUI palettes |
-| Watch Mode | Continuous compilation (`-w, --watch`) monitoring Markdown & CSS changes with debounced re-renders |
-| TUI | Full-height canvas, scrollable sidebar, cross-platform native pickers (macOS/Windows/Linux), authentic Downloads/Docs presets, centered action buttons, `Ctrl+S` buffer saving, and responsive layouts |
+| Watch & Preview | Continuous compilation (`-w, --watch`) monitoring Markdown & CSS changes, plus instant terminal ANSI preview (`--preview`) |
+| TUI | Full-height canvas, scrollable sidebar, cross-platform native pickers (macOS/Windows/Linux), authentic Downloads/Docs presets, `Ctrl+E` external editor jumper, `Ctrl+S` buffer saving, and responsive layouts |
 | Reliability | Recoverable browser lifecycle, async cold-cache theme loading, cancellation, error cause preservation, and graceful crash handling |
 
 ## Installation
@@ -61,7 +63,7 @@ curl -fsSL https://raw.githubusercontent.com/ezhil-003/docket/main/scripts/insta
 To install a pinned release or use a custom install directory:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/ezhil-003/docket/main/scripts/install.sh | bash -s -- --version v1.4.2 --dir "$HOME/.local/bin"
+curl -fsSL https://raw.githubusercontent.com/ezhil-003/docket/main/scripts/install.sh | bash -s -- --version v1.5.0 --dir "$HOME/.local/bin"
 ```
 
 The installer supports `linux-x64`, `darwin-x64`, and `darwin-arm64`. It fails closed when the release checksum is missing or invalid.

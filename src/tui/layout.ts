@@ -22,11 +22,18 @@ export function getTuiLayout(width: number, height: number): TuiLayout {
   };
 }
 
+/**
+ * Shortens a file path to fit within maxLength terminal columns using Bun.stringWidth.
+ */
 export function shortenPath(value: string, maxLength: number): string {
   const home = os.homedir();
   const normalized = home && value.startsWith(home) ? `~${value.slice(home.length)}` : value;
-  if (normalized.length <= maxLength) return normalized;
+  const currentWidth = Bun.stringWidth(normalized);
+  if (currentWidth <= maxLength) return normalized;
+
   const filename = normalized.split(/[\\/]/).at(-1) ?? normalized;
-  if (filename.length + 2 <= maxLength) return `…/${filename}`;
+  const filenameWidth = Bun.stringWidth(filename);
+  if (filenameWidth + 2 <= maxLength) return `…/${filename}`;
+
   return `…${normalized.slice(-(maxLength - 1))}`;
 }

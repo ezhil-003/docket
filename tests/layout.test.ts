@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { getTuiLayout, shortenPath } from "../src/tui/layout";
 
 describe("responsive TUI layout", () => {

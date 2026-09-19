@@ -1,15 +1,16 @@
 #!/usr/bin/env bun
 import fs from "node:fs";
 import path from "node:path";
+import { $ } from "bun";
 import { renderPdf, shutdownRenderer } from "./core/render";
 import { THEME_IDS, THEMES, isValidThemeId, type ThemeId } from "./core/themes";
 import { lintMarkdown } from "./core/lint";
 import { CliUsageError, formatDocketError } from "./core/errors";
-import { NodeFileSystem } from "./core/fs";
+import { BunFileSystem } from "./core/fs";
 import { expandHomeDir } from "./core/paths";
 
-const VERSION = "1.4.2";
-const fileSystem = new NodeFileSystem();
+const VERSION = "1.5.0";
+const fileSystem = new BunFileSystem();
 
 export interface CliOptions {
   themeId: ThemeId;
@@ -21,6 +22,8 @@ export interface CliOptions {
   paste: boolean;
   forceLint: boolean;
   dryRunHtmlPath?: string;
+  preview?: boolean;
+  open?: boolean;
 }
 
 export function getHelpText(): string {
@@ -40,6 +43,8 @@ OPTIONS:
   --css <file.css>         Apply custom CSS stylesheet or corporate tokens
   -w, --watch              Watch input file and auto-recompile PDF on change
   -p, --paste              Read Markdown content directly from STDIN
+  -O, --open               Open generated PDF in system viewer on completion
+  --preview                Preview Markdown in terminal using ANSI color output
   --dry-run <out.html>     Export intermediate HTML document without starting Chromium
   --force                  Bypass pre-conversion linting error gates
   -v, --version            Display Docket version
@@ -49,7 +54,8 @@ THEMES:
 ${Object.values(THEMES).map((theme) => `  * ${theme.id.padEnd(12)} : ${theme.description}`).join("\n")}
 
 EXAMPLES:
-  $ docket document.md -t modern -o modern_report.pdf
+  $ docket document.md -t modern -o modern_report.pdf -O
+  $ docket report.md --preview
   $ docket report.md --css brand.css --title "Executive Review" -w
   $ cat changelog.md | docket --paste -t technical -o release.pdf
 `;
@@ -68,6 +74,8 @@ export function parseCliArgs(argv: readonly string[]): CliOptions | "help" | "ve
   let paste = false;
   let forceLint = false;
   let dryRunHtmlPath: string | undefined;
+  let preview = false;
+  let open = false;
 
   const requireValue = (index: number, flag: string): string => {
     const value = argv[index + 1];
@@ -96,6 +104,10 @@ export function parseCliArgs(argv: readonly string[]): CliOptions | "help" | "ve
       paste = true;
     } else if (arg === "--force") {
       forceLint = true;
+    } else if (arg === "--preview") {
+      preview = true;
+    } else if (arg === "-O" || arg === "--open") {
+      open = true;
     } else if (arg.startsWith("-")) {
       throw new CliUsageError(`Unknown option '${arg}'.`);
     } else if (inputPath) {
@@ -118,19 +130,17 @@ export function parseCliArgs(argv: readonly string[]): CliOptions | "help" | "ve
     paste,
     forceLint,
     dryRunHtmlPath,
+    preview,
+    open,
   };
 }
 
 export async function readStdin(maxBytes = 25 * 1024 * 1024): Promise<string> {
-  const chunks: Buffer[] = [];
-  let total = 0;
-  for await (const chunk of process.stdin) {
-    const buffer = typeof chunk === "string" ? Buffer.from(chunk) : chunk;
-    total += buffer.byteLength;
-    if (total > maxBytes) throw new CliUsageError(`STDIN input exceeds the ${maxBytes} byte limit.`);
-    chunks.push(buffer);
+  const text = await Bun.stdin.text();
+  if (Buffer.byteLength(text) > maxBytes) {
+    throw new CliUsageError(`STDIN input exceeds the ${maxBytes} byte limit.`);
   }
-  return Buffer.concat(chunks).toString("utf8");
+  return text;
 }
 
 async function runWatchMode(parsed: CliOptions): Promise<void> {
@@ -239,7 +249,8 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
       return 0;
     }
     if (parsed === "version") {
-      console.log(`Docket v${VERSION}`);
+      const revision = Bun.revision ? `, commit ${Bun.revision.slice(0, 7)}` : "";
+      console.log(`Docket v${VERSION} (bun v${Bun.version}${revision})`);
       return 0;
     }
     if (!parsed.paste && !parsed.inputPath) {
@@ -268,6 +279,12 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
       markdownSource = await fileSystem.readText(inputPath);
       title = parsed.title ?? path.basename(inputPath, path.extname(inputPath));
       outputPath ??= `${title}.pdf`;
+    }
+
+    // Handle terminal ANSI preview flag
+    if (parsed.preview) {
+      console.log(Bun.markdown.ansi(markdownSource));
+      return 0;
     }
 
     const lintResult = lintMarkdown(markdownSource);
@@ -299,6 +316,18 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
     console.log(`  File:     ${renderResult.outputPath}`);
     console.log(`  Size:     ${(renderResult.bytes / 1024).toFixed(1)} KB`);
     console.log(`  Time:     ${(renderResult.durationMs / 1000).toFixed(2)}s`);
+
+    // Handle --open flag
+    if (parsed.open && !parsed.dryRunHtmlPath) {
+      if (process.platform === "darwin") {
+        await $`open ${renderResult.outputPath}`.nothrow().quiet();
+      } else if (process.platform === "win32") {
+        await $`cmd /c start "" ${renderResult.outputPath}`.nothrow().quiet();
+      } else {
+        await $`xdg-open ${renderResult.outputPath}`.nothrow().quiet();
+      }
+    }
+
     return 0;
   } catch (error) {
     console.error(formatDocketError(error));
@@ -328,7 +357,7 @@ function installProcessLifecycle(): void {
   });
 }
 
-if (import.meta.main) {
+if (import.meta.main || import.meta.path === Bun.main) {
   installProcessLifecycle();
   void main().then((code) => { process.exitCode = code; });
 }

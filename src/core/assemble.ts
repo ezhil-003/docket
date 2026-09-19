@@ -2,12 +2,7 @@ import { parseMarkdown, parseMarkdownAsync } from "./parse";
 import { resolveThemeCss, resolveThemeCssSync, type ThemeId } from "./themes";
 
 function escapeHtml(str: string): string {
-  return str
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
+  return Bun.escapeHTML(str);
 }
 
 /**

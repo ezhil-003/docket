@@ -26,7 +26,7 @@ import type { DocketState } from "../core/contracts";
 import { getTuiLayout, shortenPath } from "./layout";
 import { TUI_THEME, THEME_PALETTES, getTuiTheme, createSyntaxStyle, type TuiColorPalette } from "./theme";
 
-const VERSION = process.env.npm_package_version ?? "1.4.2";
+const VERSION = process.env.npm_package_version ?? "1.5.0";
 const defaultSampleMarkdown = `# Executive Briefing
 
 > **Status**: Docket Markdown Engine Deployed
@@ -533,6 +533,7 @@ export async function runTuiApp(): Promise<void> {
     dispatch({ type: "set-mode", mode: "file" });
     filePath.focus();
   });
+  const btnEditor = makeMiniButton(renderer, "📝 Edit (Ctrl+E)", () => openInExternalEditor());
   const btnPdfTheme = makeMiniButton(renderer, `📄 Style: ${THEMES[state.pdfTheme].name.split(" ")[0]}`, () => cyclePdfTheme());
   const btnTuiTheme = makeMiniButton(renderer, `🎨 UI: ${THEME_PALETTES[state.tuiTheme].name.split(" ")[0]}`, () => cycleTuiTheme());
   const btnMode = makeMiniButton(renderer, "✏ Mode", () => toggleMode());
@@ -543,6 +544,7 @@ export async function runTuiApp(): Promise<void> {
   footer.add(btnGenerate.box);
   footer.add(btnSave.box);
   footer.add(btnOpenFile.box);
+  footer.add(btnEditor.box);
   footer.add(btnPdfTheme.box);
   footer.add(btnTuiTheme.box);
   footer.add(btnMode.box);
@@ -555,8 +557,20 @@ export async function runTuiApp(): Promise<void> {
   root.add(workspaceScreen);
   renderer.root.add(root);
 
+  function openInExternalEditor(): void {
+    const currentFile = filePath.value.trim();
+    if (currentFile) {
+      const firstErrLine = state.diagnostics?.errors?.[0]?.line ?? 1;
+      Bun.openInEditor(currentFile, { line: firstErrLine });
+      addMessage(`Opened in external editor at line ${firstErrLine}`);
+    } else {
+      addMessage("External editor requires a saved file path");
+    }
+  }
+
   function addMessage(message: string): void {
-    dispatch({ type: "add-message", message });
+    const wrapped = Bun.wrapAnsi(message, 38);
+    dispatch({ type: "add-message", message: wrapped });
     messages.content = state.messages.join("\n");
   }
 
@@ -1008,6 +1022,10 @@ export async function runTuiApp(): Promise<void> {
       if (state.screen === "startup") startWorkspace("file");
       else dispatch({ type: "set-mode", mode: "file" });
       filePath.focus();
+      return;
+    }
+    if (key.ctrl && key.name === "e") {
+      openInExternalEditor();
       return;
     }
     if (key.ctrl && key.name === "d" && state.screen === "workspace") {

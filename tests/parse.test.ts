@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { parseMarkdown, parseMarkdownAsync } from "../src/core/parse";
 
 describe("Markdown Parser (parse.ts)", () => {
@@ -10,7 +10,8 @@ describe("Markdown Parser (parse.ts)", () => {
   it("should parse standard headings and paragraphs", () => {
     const md = "# Title\n\nParagraph text goes here.";
     const html = parseMarkdown(md);
-    expect(html).toContain("<h1>Title</h1>");
+    expect(html).toContain('id="title"');
+    expect(html).toContain("Title</h1>");
     expect(html).toContain("<p>Paragraph text goes here.</p>");
   });
 

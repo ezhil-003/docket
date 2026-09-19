@@ -1,7 +1,5 @@
-import MarkdownIt from "markdown-it";
 import { createHighlighter, type Highlighter } from "shiki";
 import type { ThemeId } from "./themes";
-
 import { extractFrontmatter } from "./frontmatter";
 
 export const SHIKI_THEME_MAP: Record<ThemeId, string> = {
@@ -66,68 +64,50 @@ export function getHighlighterInstance(): Promise<Highlighter> {
   return highlighterPromise;
 }
 
-function escapeCodeHtml(str: string): string {
-  return str
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
-}
+/**
+ * Highlights code blocks in Bun.markdown HTML output, adds data-lang badges,
+ * and suppresses empty code fence boxes.
+ */
+function highlightCodeBlocks(html: string, shikiTheme: string): string {
+  return html.replace(
+    /<pre><code(?:\s+class="language-([^"]*)")?>([\s\S]*?)<\/code><\/pre>/g,
+    (_, lang, code) => {
+      // Unescape standard HTML entities inserted by md4c into code
+      const unescaped = code
+        .replace(/&amp;/g, "&")
+        .replace(/&lt;/g, "<")
+        .replace(/&gt;/g, ">")
+        .replace(/&quot;/g, "\"")
+        .replace(/&#39;/g, "'")
+        .replace(/&#x27;/g, "'");
 
-type MarkdownItInstance = ReturnType<typeof MarkdownIt>;
-const parserCache = new Map<ThemeId, MarkdownItInstance>();
-
-function getMarkdownParser(themeId: ThemeId = "executive"): MarkdownItInstance {
-  const currentThemeId = (themeId in SHIKI_THEME_MAP) ? themeId : "executive";
-  const cached = parserCache.get(currentThemeId);
-  if (cached) return cached;
-
-  const shikiTheme = SHIKI_THEME_MAP[currentThemeId] ?? "dark-plus";
-  const parser = new MarkdownIt({
-    html: true,
-    linkify: true,
-    typographer: true,
-    breaks: false,
-    highlight: (code, lang) => {
-      if (!code || code.trim().length === 0) {
+      if (!unescaped || unescaped.trim().length === 0) {
         return "";
       }
+
+      const cleanLang = lang?.trim().toLowerCase();
+
       if (syncHighlighter) {
         try {
           const loadedLangs = syncHighlighter.getLoadedLanguages();
-          const cleanLang = lang?.trim().toLowerCase();
           const validLang = cleanLang && loadedLangs.includes(cleanLang) ? cleanLang : "text";
-          const highlighted = syncHighlighter.codeToHtml(code, {
+          const highlighted = syncHighlighter.codeToHtml(unescaped, {
             lang: validLang,
             theme: shikiTheme,
           });
           if (cleanLang && cleanLang !== "text") {
-            return highlighted.replace(/^<pre\b/, `<pre data-lang="${escapeCodeHtml(cleanLang)}"`);
+            return highlighted.replace(/^<pre\b/, `<pre data-lang="${Bun.escapeHTML(cleanLang)}"`);
           }
           return highlighted;
         } catch {
-          // fallback
+          // Fallback to basic formatted pre/code
         }
       }
-      return `<pre class="shiki ${shikiTheme}"><code>${escapeCodeHtml(code)}</code></pre>`;
-    },
-  });
 
-  const defaultFence = parser.renderer.rules.fence;
-  parser.renderer.rules.fence = (tokens, idx, options, env, self) => {
-    const token = tokens[idx];
-    if (!token?.content || token.content.trim().length === 0) {
-      return "";
+      const dataLangAttr = cleanLang && cleanLang !== "text" ? ` data-lang="${Bun.escapeHTML(cleanLang)}"` : "";
+      return `<pre class="shiki ${shikiTheme}"${dataLangAttr}><code>${Bun.escapeHTML(unescaped)}</code></pre>`;
     }
-    if (defaultFence) {
-      return defaultFence(tokens, idx, options, env, self);
-    }
-    return self.renderToken(tokens, idx, options);
-  };
-
-  parserCache.set(currentThemeId, parser);
-  return parser;
+  );
 }
 
 /**
@@ -218,7 +198,7 @@ export function processCallouts(html: string): string {
 }
 
 /**
- * Parses Markdown raw text string into sanitized HTML body content.
+ * Parses Markdown raw text string into sanitized HTML body content using Bun.markdown.
  */
 export function parseMarkdown(source: string, themeId: ThemeId = "executive"): string {
   if (!source || source.trim().length === 0) {
@@ -229,9 +209,29 @@ export function parseMarkdown(source: string, themeId: ThemeId = "executive"): s
     return "<p><em>[Empty Document]</em></p>";
   }
   const processed = preprocessPageBreaks(body);
-  const md = getMarkdownParser(themeId);
-  const rendered = md.render(processed);
-  const withCallouts = processCallouts(rendered);
+
+  // Synchronously extract resolved highlighter instance if ready via Bun.peek
+  if (highlighterPromise && !syncHighlighter) {
+    const peeked = Bun.peek(highlighterPromise);
+    if (peeked && !(peeked instanceof Promise)) {
+      syncHighlighter = peeked;
+    }
+  }
+
+  const currentThemeId = (themeId in SHIKI_THEME_MAP) ? themeId : "executive";
+  const shikiTheme = SHIKI_THEME_MAP[currentThemeId] ?? "dark-plus";
+
+  // Native Bun Markdown parsing (Zig/Rust md4c, ~20x faster than markdown-it)
+  const rawHtml = Bun.markdown.html(processed, {
+    tables: true,
+    strikethrough: true,
+    tasklists: true,
+    autolinks: true,
+    headings: { ids: true },
+  });
+
+  const withHighlightedCode = highlightCodeBlocks(rawHtml, shikiTheme);
+  const withCallouts = processCallouts(withHighlightedCode);
   return sanitizeRenderedHtml(withCallouts);
 }
 

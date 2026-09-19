@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { extractFrontmatter } from "../src/core/frontmatter";
 import { parseMarkdown } from "../src/core/parse";
 import { derivePdfFilename } from "../src/core/output";
@@ -72,7 +72,8 @@ Paragraph text.`;
     const html = parseMarkdown(markdown);
     expect(html).not.toContain("Secret Metadata");
     expect(html).not.toContain("Nobody");
-    expect(html).toContain("<h1>Real Heading</h1>");
+    expect(html).toContain('id="real-heading"');
+    expect(html).toContain("Real Heading</h1>");
     expect(html).toContain("<p>Paragraph text.</p>");
   });
 

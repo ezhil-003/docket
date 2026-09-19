@@ -1,8 +1,8 @@
-import { describe, it, expect, afterAll } from "vitest";
+import { describe, it, expect, afterAll } from "bun:test";
 import fs from "node:fs";
 import path from "node:path";
 import { BrowserManager, renderPdf } from "../src/core/render";
-import type { Browser, Page } from "puppeteer";
+import type { BrowserLike as Browser, Page } from "../src/core/render";
 
 const tempOutputDir = path.join(__dirname, "../temp-test-output");
 
@@ -42,11 +42,18 @@ describe("PDF Renderer HTML pipeline (render.ts)", () => {
   it("rejects an already-cancelled render before starting Chromium", async () => {
     const controller = new AbortController();
     controller.abort();
-    await expect(renderPdf({
-      markdownSource: "# Cancelled",
-      outputPath: path.join(tempOutputDir, "cancelled.pdf"),
-      signal: controller.signal,
-    })).rejects.toMatchObject({ code: "ERR_PUPPETEER_RENDER" });
+    let thrownError: any;
+    try {
+      await renderPdf({
+        markdownSource: "# Cancelled",
+        outputPath: path.join(tempOutputDir, "cancelled.pdf"),
+        signal: controller.signal,
+      });
+    } catch (err) {
+      thrownError = err;
+    }
+    expect(thrownError).toBeDefined();
+    expect(thrownError.code).toBe("ERR_PUPPETEER_RENDER");
   });
 
   it("relaunches Chromium after the managed browser disconnects", async () => {

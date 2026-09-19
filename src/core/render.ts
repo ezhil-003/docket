@@ -1,14 +1,15 @@
-import puppeteer, { type Browser, type Page } from "puppeteer";
-import { randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { assembleHtmlAsync } from "./assemble";
 import { lintMarkdown } from "./lint";
-import { DocketError, MarkdownLintError, PuppeteerRenderError, FileAccessError } from "./errors";
+import { DocketError, MarkdownLintError, RenderError, PuppeteerRenderError } from "./errors";
 import type { ThemeId } from "./themes";
 import { normalizePdfOutputPath } from "./output";
-
 import { extractFrontmatter } from "./frontmatter";
+import { launchCdpBrowser, CdpBrowser, CdpPage } from "./cdp";
+import { NodeFileSystem } from "./fs";
+
+export type { CdpBrowser as Browser, CdpPage as Page };
 
 export interface RenderOptions {
   markdownSource: string;
@@ -30,34 +31,30 @@ export interface RenderResult {
   title?: string;
 }
 
-export interface BrowserFactory {
-  launch(): Promise<Browser>;
+export interface BrowserLike {
+  connected: boolean;
+  newPage(): Promise<CdpPage>;
+  close(): Promise<void>;
 }
 
-class PuppeteerBrowserFactory implements BrowserFactory {
-  async launch(): Promise<Browser> {
-    return puppeteer.launch({
-      headless: true,
-      args: [
-        "--no-sandbox",
-        "--disable-setuid-sandbox",
-        "--disable-dev-shm-usage",
-        "--no-first-run",
-        "--disable-gpu",
-      ],
-      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
-    });
+export interface BrowserFactory {
+  launch(): Promise<BrowserLike>;
+}
+
+class CdpBrowserFactory implements BrowserFactory {
+  async launch(): Promise<BrowserLike> {
+    return launchCdpBrowser();
   }
 }
 
 /** Owns Chromium lifetime; callers own individual pages. */
 export class BrowserManager {
-  private browser: Browser | null = null;
-  private launchPromise: Promise<Browser> | null = null;
+  private browser: BrowserLike | null = null;
+  private launchPromise: Promise<BrowserLike> | null = null;
 
-  constructor(private readonly factory: BrowserFactory = new PuppeteerBrowserFactory()) {}
+  constructor(private readonly factory: BrowserFactory = new CdpBrowserFactory()) {}
 
-  async acquirePage(): Promise<Page> {
+  async acquirePage(): Promise<CdpPage> {
     const browser = await this.acquireBrowser();
     try {
       return await browser.newPage();
@@ -82,9 +79,7 @@ export class BrowserManager {
     }
   }
 
-  private async acquireBrowser(): Promise<Browser> {
-    // Puppeteer keeps the Browser object around after Chromium disconnects.
-    // Do not hand that stale object to the next render.
+  private async acquireBrowser(): Promise<BrowserLike> {
     if (this.browser?.connected) return this.browser;
     if (this.browser && !this.browser.connected) {
       await this.close();
@@ -94,7 +89,7 @@ export class BrowserManager {
         this.launchPromise = null;
         throw new PuppeteerRenderError(
           `Failed to launch headless Chromium browser: ${error instanceof Error ? error.message : String(error)}`,
-          "Install Chrome/Chromium or set PUPPETEER_EXECUTABLE_PATH.",
+          "Install Chrome/Chromium or set DOCKET_CHROME_PATH.",
         );
       });
     }
@@ -119,18 +114,6 @@ function throwIfAborted(signal?: AbortSignal): void {
     throw new PuppeteerRenderError("Rendering was cancelled.", "Start the conversion again when ready.");
   }
 }
-
-async function waitForFonts(page: Page, timeoutMs: number): Promise<void> {
-  await page.evaluate(async (timeout) => {
-    if (!("fonts" in document)) return;
-    await Promise.race([
-      document.fonts.ready,
-      new Promise<never>((_, reject) => setTimeout(() => reject(new Error("Font loading timed out")), timeout)),
-    ]);
-  }, timeoutMs);
-}
-
-import { NodeFileSystem } from "./fs";
 
 const defaultFileSystem = new NodeFileSystem();
 
@@ -178,36 +161,36 @@ export async function renderPdf(
   await defaultFileSystem.ensureDirectory(path.dirname(outputPath));
 
   throwIfAborted(options.signal);
-  let page: Page | null = null;
-  const temporaryPdfPath = `${outputPath}.tmp-${randomUUID()}`;
+  let page: CdpPage | null = null;
+  const temporaryPdfPath = `${outputPath}.tmp-${Bun.randomUUIDv7()}`;
   try {
     page = await browserManager.acquirePage();
-    // Markdown is rendered as static HTML. Disabling page scripts prevents raw
-    // HTML from executing code if an untrusted document reaches this pipeline.
-    await page.setJavaScriptEnabled(false);
-    await page.setContent(html, { waitUntil: "domcontentloaded", timeout: timeoutMs });
-    try {
-      await page.waitForNetworkIdle({ idleTime: 100, timeout: Math.min(timeoutMs, 5_000) });
-    } catch {
-      // Graceful fallback for offline or restricted network environments
-    }
-    throwIfAborted(options.signal);
-    await waitForFonts(page, timeoutMs);
-    await page.evaluate(() => document.body.offsetHeight);
     throwIfAborted(options.signal);
 
-    await page.pdf({
-      path: temporaryPdfPath,
-      format: "A4",
+    await page.setDocumentContent(html);
+    throwIfAborted(options.signal);
+
+    await page.waitForFonts(Math.min(timeoutMs, 10_000));
+    await page.evaluate("document.body.offsetHeight");
+    throwIfAborted(options.signal);
+
+    const pdfBuffer = await page.printToPdf({
       printBackground: true,
       preferCSSPageSize: true,
-      margin: { top: "0", right: "0", bottom: "0", left: "0" },
+      paperWidth: 8.27,
+      paperHeight: 11.69,
+      marginTop: 0,
+      marginBottom: 0,
+      marginLeft: 0,
+      marginRight: 0,
     });
+
+    await Bun.write(temporaryPdfPath, pdfBuffer);
     await fs.rename(temporaryPdfPath, outputPath);
-    const stats = await fs.stat(outputPath);
-    return { outputPath, bytes: stats.size, durationMs: Date.now() - startTime, title };
+
+    return { outputPath, bytes: pdfBuffer.length, durationMs: Date.now() - startTime, title };
   } catch (error) {
-    try { await fs.unlink(temporaryPdfPath); } catch { /* best effort */ }
+    try { await Bun.file(temporaryPdfPath).delete(); } catch { /* best effort */ }
     if (error instanceof DocketError) {
       throw error;
     }

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "bun:test";
 import { initialTuiState, reduceTuiState } from "../src/tui/state";
 import { lintMarkdown } from "../src/core/lint";
 

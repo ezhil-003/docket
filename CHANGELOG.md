@@ -8,6 +8,30 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 No changes yet.
 
+## [1.5.0] — 2026-09-19
+
+### Added
+
+- **Native Chrome DevTools Protocol (CDP) Driver (`src/core/cdp.ts`)**: Built a zero-dependency headless Chromium driver directly using `Bun.spawn` and native Web Standard `WebSocket`. Connects directly to Chromium's DevTools protocol, managing pages, executing evaluate scripts, awaiting `document.fonts.ready`, and rendering pixel-perfect PDFs via `Page.printToPDF`.
+- **Automated Chromium Cache Manager (`src/core/browser-cache.ts`)**: Automatically searches for existing Chrome/Chromium binaries via `Bun.which` and standard system paths. On headless servers or CI runners lacking a browser, Docket downloads Google's official, stripped-down `chrome-headless-shell` (~40MB compressed vs ~130MB full browser) and permanently caches it in `~/.cache/docket/chromium/`.
+- **Native Rust/Zig Markdown Engine (`Bun.markdown`)**: Replaced `markdown-it` with native `Bun.markdown.html()`, delivering a **20.1x speedup** on Markdown compilation (0.26ms/doc vs 5.23ms/doc on 1,000-line benchmarks). Includes automatic heading IDs (`headings: { ids: true }`) for table-of-contents navigation, full GFM tables, strikethroughs, tasklists, and autolinks.
+- **Instant Terminal Markdown Preview (`docket --preview`)**: Added `--preview` CLI flag powered by `Bun.markdown.ansi()` to render formatted ANSI Markdown directly in the terminal without starting Chromium.
+- **Automatic PDF Viewer Opening (`-O, --open`)**: Added `-O, --open` CLI flag using native Bun Shell (`open` on macOS, `xdg-open` on Linux, `start` on Windows) to automatically open the generated PDF in the user's default system viewer upon completion.
+- **External Editor Jump (`Ctrl+E`) in TUI**: Added `Ctrl+E` and a dedicated footer button in the OpenTUI workspace to open the active file directly in `$EDITOR` or VS Code (`Bun.openInEditor()`) jumped directly to the selected diagnostic error line.
+- **SIMD-Accelerated Column Calculations**: Replaced JavaScript string length with `Bun.stringWidth()` in `src/tui/layout.ts`, guaranteeing perfect box and sidebar boundaries with CJK characters, emojis, and ANSI formatting.
+- **ANSI-Aware Word Wrapping**: Integrated `Bun.wrapAnsi()` in `src/tui/app.ts` for clean message and diagnostic formatting at sidebar boundaries.
+- **Native Zero-Copy HTML Escaping**: Replaced regex-based string replacements across `assemble.ts` and `parse.ts` with `Bun.escapeHTML()`.
+- **Microtask-Free Cache Reading (`Bun.peek()`)**: Integrated `Bun.peek()` for zero-microtick synchronous access to prewarmed Shiki highlighter and theme CSS singletons.
+- **Zero-Dependency Native Testing (`bun:test`)**: Migrated all 83 unit and integration tests from Vitest to native `bun:test`, cutting test suite runtime from ~1.4s to **~300ms** with zero npm test dependencies.
+
+### Changed
+
+- **Eliminated Puppeteer**: Removed Puppeteer and its ~150 transient npm dependencies entirely from `package.json`, radically slimming the dependency tree and binary compile size.
+- **Eliminated markdown-it & Vitest**: Removed `markdown-it`, `@types/markdown-it`, and `vitest` from project dependencies.
+- **Native Bun Shell Native Dialogs**: Rewrote `src/core/native-picker.ts` using Bun Shell (`$`) instead of `node:child_process`, eliminating child process spawning overhead and auto-escaping arguments against command injection.
+- **File I/O Modernization**: Migrated filesystem operations in `src/core/fs.ts` and `src/core/themes.ts` to `Bun.file()` (zero-copy memory-mapped reads) and `Bun.write()` (kernel-level `clonefile` on APFS and `copy_file_range` on Linux).
+- **Target Version**: Upgraded Bun runtime target to `>=1.4.2` across `package.json`, `.bun-version`, and `.github/workflows/release.yml`.
+
 ## [1.4.2] — 2026-09-14
 
 ### Fixed

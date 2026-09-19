@@ -110,7 +110,11 @@ export async function loadThemeCssAsync(themeId: ThemeId = "executive"): Promise
   if (cached) return cached;
 
   const pending = asyncCssLoads.get(currentThemeId);
-  if (pending) return pending;
+  if (pending) {
+    const peeked = Bun.peek(pending);
+    if (peeked && !(peeked instanceof Promise)) return peeked;
+    return pending;
+  }
 
   const themesDir = path.resolve(import.meta.dirname ?? __dirname, "../themes");
   const basePath = path.join(themesDir, "_base.css");
@@ -120,8 +124,8 @@ export async function loadThemeCssAsync(themeId: ThemeId = "executive"): Promise
     let themeCss = "";
 
     try {
-      baseCss = await fsp.readFile(basePath, "utf-8");
-      themeCss = await fsp.readFile(themePath, "utf-8");
+      baseCss = await Bun.file(basePath).text();
+      themeCss = await Bun.file(themePath).text();
     } catch {
       baseCss = EMBEDDED_BASE_CSS;
       themeCss = EMBEDDED_THEME_CSS[currentThemeId] ?? EMBEDDED_THEME_CSS.executive;
@@ -160,7 +164,11 @@ export async function resolveThemeCss(
 
   const resolvedPath = path.resolve(expandHomeDir(customCssPath));
   try {
-    const customContent = await fsp.readFile(resolvedPath, "utf-8");
+    const customFile = Bun.file(resolvedPath);
+    if (!(await customFile.exists())) {
+      throw new Error("File not found");
+    }
+    const customContent = await customFile.text();
     return `${baseThemeCss}\n\n/* Custom Stylesheet: ${path.basename(resolvedPath)} */\n${customContent}`;
   } catch (error) {
     throw new FileAccessError(

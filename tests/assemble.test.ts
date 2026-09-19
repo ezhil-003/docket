@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { assembleHtml } from "../src/core/assemble";
 
 describe("HTML Document Assembler (assemble.ts)", () => {
@@ -8,7 +8,8 @@ describe("HTML Document Assembler (assemble.ts)", () => {
     expect(html).toContain("<html lang=\"en\">");
     expect(html).toContain("<title>Test Title</title>");
     expect(html).toContain('<div class="page-content">');
-    expect(html).toContain("<h1>Test Document</h1>");
+    expect(html).toContain('id="test-document"');
+    expect(html).toContain("Test Document</h1>");
     expect(html).toContain("</div>");
     expect(html).toContain("</html>");
   });

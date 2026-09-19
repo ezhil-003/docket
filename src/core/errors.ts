@@ -58,13 +58,25 @@ export class ThemeNotFoundError extends DocketError {
   }
 }
 
-export class PuppeteerRenderError extends DocketError {
+export class RenderError extends DocketError {
   constructor(
     message: string,
-    userHint = "Ensure Chromium/Chrome is installed or set PUPPETEER_EXECUTABLE_PATH.",
+    userHint = "Ensure Chromium/Chrome is installed or set DOCKET_CHROME_PATH.",
+    options: { stage?: string; cause?: unknown } = {},
+    code = "ERR_PUPPETEER_RENDER",
+  ) {
+    super(message, code, userHint, true, { stage: "render", ...options });
+    this.name = "RenderError";
+  }
+}
+
+export class PuppeteerRenderError extends RenderError {
+  constructor(
+    message: string,
+    userHint = "Ensure Chromium/Chrome is installed or set DOCKET_CHROME_PATH.",
     options: { stage?: string; cause?: unknown } = {}
   ) {
-    super(message, "ERR_PUPPETEER_RENDER", userHint, true, { stage: "render", ...options });
+    super(message, userHint, options, "ERR_PUPPETEER_RENDER");
     this.name = "PuppeteerRenderError";
   }
 }

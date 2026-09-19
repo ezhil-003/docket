@@ -6,13 +6,13 @@ Welcome! This document provides operational guidelines, architecture layout, and
 
 ## 1. Project Overview
 
-**Docket** is a production-grade executive Markdown-to-PDF generation engine built using:
-- **Runtime**: [Bun](https://bun.sh)
+**Docket** is a production-grade executive Markdown-to-PDF generation engine built using 100% Bun-native primitives:
+- **Runtime**: [Bun](https://bun.sh) (>= v1.4.2)
 - **Language**: TypeScript (`type: module`, ES2022/ESNext target)
-- **Markdown Parsing**: `markdown-it`
-- **PDF Rendering**: `puppeteer` (headless Chromium print-to-PDF)
-- **Interactive TUI**: `@opentui/core`
-- **Testing**: `vitest`
+- **Markdown Parsing**: `Bun.markdown` (native Zig/Rust GFM compiler, ~20x faster than markdown-it)
+- **PDF Rendering**: Native Bun CDP Client (`src/core/cdp.ts`) + Automated `chrome-headless-shell` Cache (`src/core/browser-cache.ts`)
+- **Interactive TUI**: `@opentui/core` with SIMD-accelerated `Bun.stringWidth()`, `Bun.wrapAnsi()`, and `Bun.openInEditor()`
+- **Testing**: `bun:test` native test runner (~300ms execution, zero test dependencies)
 
 ---
 
@@ -27,20 +27,22 @@ Welcome! This document provides operational guidelines, architecture layout, and
 ├── tsconfig.json           # TypeScript configuration
 ├── sample.md               # Sample Markdown document for testing
 ├── src/
-│   ├── cli.ts              # Non-interactive CLI entry point (arg parsing, STDIN piping, watch mode)
+│   ├── cli.ts              # Non-interactive CLI entry point (arg parsing, STDIN piping, watch mode, --open, --preview)
 │   ├── core/
-│   │   ├── assemble.ts     # Markdown to HTML document assembly wrapper
+│   │   ├── assemble.ts     # Markdown to HTML document assembly wrapper with Bun.escapeHTML
+│   │   ├── browser-cache.ts# Cross-platform system Chrome discovery & automated headless shell downloader
+│   │   ├── cdp.ts          # Pure Bun Chrome DevTools Protocol driver (Bun.spawn + native WebSocket)
 │   │   ├── contracts.ts    # Core TypeScript types & document contracts
 │   │   ├── errors.ts       # Structured error hierarchy with cause preservation
 │   │   ├── frontmatter.ts  # Native YAML frontmatter metadata extraction & stripping
-│   │   ├── fs.ts           # Atomic file system adapter
+│   │   ├── fs.ts           # Bun-native atomic file system adapter (Bun.file, Bun.write)
 │   │   ├── lint.ts         # Real-time Markdown linter engine
-│   │   ├── native-picker.ts# Cross-platform native folder/file dialogs (macOS, Windows, Linux)
+│   │   ├── native-picker.ts# Cross-platform native folder/file dialogs powered by Bun Shell ($)
 │   │   ├── output.ts       # Output path resolution & heading-derived filenames
-│   │   ├── parse.ts        # Markdown-it instance, callouts & Shiki syntax highlighting
+│   │   ├── parse.ts        # Native Bun Markdown compiler, Shiki highlighting, callouts & pagebreaks
 │   │   ├── paths.ts        # Cross-platform home expansion & standard user directory discovery
-│   │   ├── render.ts       # Puppeteer page rendering & PDF output logic
-│   │   └── themes.ts       # Theme registry, custom CSS resolution & loader
+│   │   ├── render.ts       # CDP page rendering & PDF output logic
+│   │   └── themes.ts       # Theme registry, custom CSS resolution, Bun.file loader & Bun.peek
 │   ├── themes/             # CSS styling presets
 │   │   ├── _base.css       # Core design system tokens, container padding & layout resets
 │   │   ├── modern.css      # Modern Indigo / Catppuccin Mocha styling
@@ -50,11 +52,11 @@ Welcome! This document provides operational guidelines, architecture layout, and
 │   │   ├── boardroom.css   # Warm charcoal & amber / Dracula typography
 │   │   └── minimal.css     # Clean monochrome / Tokyo Night layout
 │   └── tui/
-│       ├── app.ts          # Interactive OpenTUI terminal UI frontend
-│       ├── layout.ts       # Responsive layout metrics
+│       ├── app.ts          # Interactive OpenTUI terminal UI frontend (Ctrl+E editor, Bun.wrapAnsi)
+│       ├── layout.ts       # Responsive layout metrics with Bun.stringWidth
 │       ├── state.ts        # Pure reducer state machine & DocketState
 │       └── theme.ts        # Multi-theme palettes & SyntaxStyle builder
-└── tests/                  # Vitest test suite (70+ tests)
+└── tests/                  # bun:test native test suite (80+ tests)
 ```
 
 ---
@@ -67,7 +69,8 @@ Welcome! This document provides operational guidelines, architecture layout, and
 | **Run Unit Tests** | `bun test` or `bun run test` |
 | **Run Tests in Watch Mode** | `bun test:watch` |
 | **Launch TUI Frontend** | `bun run start` (or `bun run tui`) |
-| **Run CLI** | `bun run cli -- [args]` (e.g. `bun run cli sample.md -t modern -o sample.pdf`) |
+| **Run CLI** | `bun run cli -- [args]` (e.g. `bun run cli sample.md -t modern -o sample.pdf -O`) |
+| **Preview in Terminal** | `bun run cli -- sample.md --preview` |
 | **Compile Binary** | `bun run build` |
 
 ---
@@ -81,10 +84,10 @@ When modifying rendering logic or themes, AI agents **MUST** maintain the follow
    - Repeating table headers (`thead { display: table-header-group }`) and row integrity guards (`tr { break-inside: avoid }`).
    - Essential page-break guards (`break-after: avoid-page`, `break-inside: avoid`) on headers, code blocks, blockquotes, and callouts with orphan/widow controls.
 2. **Font Readiness Guarantee**:
-   - `puppeteer` MUST wait for `document.fonts.ready` before taking a screenshot or generating PDF to ensure custom web fonts render properly.
+   - CDP session MUST wait for `document.fonts.ready` before calling `Page.printToPDF` to ensure custom web fonts render properly.
 3. **Dual Execution Modes**:
-   - **CLI Mode (`src/cli.ts`)**: Fast, non-interactive, suitable for CI/CD automation & STDIN piping.
-   - **TUI Mode (`src/tui/app.ts`)**: Rich terminal interface with text mode and file path mode switcher.
+   - **CLI Mode (`src/cli.ts`)**: Fast, non-interactive, suitable for CI/CD automation & STDIN piping with `-O, --open` and `--preview`.
+   - **TUI Mode (`src/tui/app.ts`)**: Rich terminal interface with text mode, file path switcher, and `Ctrl+E` external editor jumper.
 
 ---
 

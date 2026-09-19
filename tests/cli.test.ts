@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { getHelpText, parseCliArgs } from "../src/cli";
 import { CliUsageError } from "../src/core/errors";
 
@@ -13,6 +13,8 @@ describe("CLI Engine (cli.ts)", () => {
     expect(help).toContain("--css <file.css>");
     expect(help).toContain("-w, --watch");
     expect(help).toContain("-p, --paste");
+    expect(help).toContain("-O, --open");
+    expect(help).toContain("--preview");
     expect(help).toContain("--dry-run <out.html>");
     expect(help).toContain("-v, --version");
     expect(help).toContain("executive");
@@ -33,6 +35,8 @@ describe("CLI Engine (cli.ts)", () => {
       paste: false,
       forceLint: false,
       dryRunHtmlPath: undefined,
+      preview: false,
+      open: false,
     });
   });
 
@@ -50,6 +54,7 @@ describe("CLI Engine (cli.ts)", () => {
       "--css", "custom.css",
       "--watch",
       "--force",
+      "--open",
     ])).toEqual({
       inputPath: "report.md",
       themeId: "modern",
@@ -60,7 +65,17 @@ describe("CLI Engine (cli.ts)", () => {
       paste: false,
       forceLint: true,
       dryRunHtmlPath: undefined,
+      preview: false,
+      open: true,
     });
+  });
+
+  it("parses preview flag correctly", () => {
+    const parsed = parseCliArgs(["sample.md", "--preview"]);
+    if (typeof parsed === "object") {
+      expect(parsed.preview).toBe(true);
+      expect(parsed.inputPath).toBe("sample.md");
+    }
   });
 
   it("rejects unknown options, missing values, and conflicting sources", () => {

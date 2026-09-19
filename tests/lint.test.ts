@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { lintMarkdown } from "../src/core/lint";
 
 describe("Markdown Real-Time Linter Engine (lint.ts)", () => {
