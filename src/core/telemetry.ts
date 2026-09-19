@@ -157,7 +157,7 @@ export class Tracer {
   public readonly serviceName: string;
   public readonly serviceVersion: string;
 
-  constructor(serviceName = "docket", serviceVersion = "1.5.0") {
+  constructor(serviceName = "docket", serviceVersion = "1.5.1") {
     this.serviceName = process.env.OTEL_SERVICE_NAME || serviceName;
     this.serviceVersion = serviceVersion;
   }

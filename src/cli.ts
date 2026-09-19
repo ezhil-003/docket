@@ -11,7 +11,7 @@ import { expandHomeDir } from "./core/paths";
 import { logger } from "./core/logger";
 import { tracer } from "./core/telemetry";
 
-const VERSION = "1.5.0";
+const VERSION = "1.5.1";
 const fileSystem = new BunFileSystem();
 
 export interface CliOptions {

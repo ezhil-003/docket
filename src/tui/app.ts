@@ -29,7 +29,7 @@ import type { DocketState } from "../core/contracts";
 import { getTuiLayout, shortenPath } from "./layout";
 import { TUI_THEME, THEME_PALETTES, getTuiTheme, createSyntaxStyle, type TuiColorPalette } from "./theme";
 
-const VERSION = process.env.npm_package_version ?? "1.5.0";
+const VERSION = process.env.npm_package_version ?? "1.5.1";
 const defaultSampleMarkdown = `# Executive Briefing
 
 > **Status**: Docket Markdown Engine Deployed

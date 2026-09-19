@@ -8,6 +8,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 No changes yet.
 
+## [1.5.1] — 2026-09-19
+
+### Fixed
+
+- **TUI Terminal Grid Isolation & Footer Bleed Fix**: Resolved issue where internal pipeline logs from `renderPdf` wrote directly to `stderr`, corrupting the OpenTUI terminal footer bar. Installed a pluggable `LogSink` in `src/tui/app.ts` that redirects TUI runtime logs to `~/.cache/docket/logs/docket.log`, while piping essential milestones into the native **ACTIVITY LOG** card.
+- **Human-Friendly Pretty Token Formatter**: Eliminated raw `JSON.stringify` object dumps (`{"outputPath":"...","bytes":...}`) in human-facing terminal logs. Replaced with formatted, colored key-value tokens (e.g. `size=341.8 KB`, `duration=640ms`, `file=report.pdf`).
+- **Clean Default CLI Logging Level**: Set default CLI log level to `warn` to prevent noisy internal pipeline diagnostic logs from cluttering the primary executive completion summary. Detailed diagnostics are cleanly enabled via `--verbose` (`-V` / `--debug`) and NDJSON streaming via `--json-log`.
+
+### Added
+
+- **Pluggable Logger Sinks (`LogSink`)**: Added `setSink()`, `getSink()`, and `resetSink()` to `Logger` in `src/core/logger.ts`, allowing programmatic capture or file redirection of all engine logs without monkey-patching `process.stderr`.
+
 ## [1.5.0] — 2026-09-19
 
 ### Added

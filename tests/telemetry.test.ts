@@ -10,7 +10,7 @@ describe("Telemetry & OpenTelemetry Tracing (telemetry.ts)", () => {
   let tracer: Tracer;
 
   beforeEach(() => {
-    tracer = new Tracer("docket-test", "1.5.0");
+    tracer = new Tracer("docket-test", "1.5.1");
   });
 
   it("generates valid W3C TraceContext trace IDs and span IDs", () => {
@@ -101,7 +101,7 @@ describe("Telemetry & OpenTelemetry Tracing (telemetry.ts)", () => {
 
     expect(parsed.resource).toBeDefined();
     expect(parsed.resource.attributes["service.name"]).toBe("docket-test");
-    expect(parsed.resource.attributes["service.version"]).toBe("1.5.0");
+    expect(parsed.resource.attributes["service.version"]).toBe("1.5.1");
     expect(parsed.resource.attributes["bun.version"]).toBeDefined();
     expect(parsed.spans).toHaveLength(2);
 
