@@ -1,5 +1,7 @@
 import { describe, it, expect } from "bun:test";
-import { getHelpText, parseCliArgs } from "../src/cli";
+import fs from "node:fs";
+import path from "node:path";
+import { getHelpText, parseCliArgs, main } from "../src/cli";
 import { CliUsageError } from "../src/core/errors";
 
 describe("CLI Engine (cli.ts)", () => {
@@ -16,6 +18,10 @@ describe("CLI Engine (cli.ts)", () => {
     expect(help).toContain("-O, --open");
     expect(help).toContain("--preview");
     expect(help).toContain("--dry-run <out.html>");
+    expect(help).toContain("-V, --verbose");
+    expect(help).toContain("-q, --quiet");
+    expect(help).toContain("--json-log");
+    expect(help).toContain("--trace <file.json>");
     expect(help).toContain("-v, --version");
     expect(help).toContain("executive");
     expect(help).toContain("technical");
@@ -78,11 +84,56 @@ describe("CLI Engine (cli.ts)", () => {
     }
   });
 
+  it("parses observability and logging flags correctly", () => {
+    const parsed = parseCliArgs([
+      "doc.md",
+      "--verbose",
+      "--quiet",
+      "--json-log",
+      "--trace",
+      "run-trace.json",
+    ]);
+    if (typeof parsed === "object") {
+      expect(parsed.verbose).toBe(true);
+      expect(parsed.quiet).toBe(true);
+      expect(parsed.jsonLog).toBe(true);
+      expect(parsed.tracePath).toBe("run-trace.json");
+    }
+  });
+
+  it("exports trace file during CLI execution with --trace", async () => {
+    const uniqueId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const traceOut = `/tmp/docket-cli-test-trace-${uniqueId}.json`;
+    const dryRunOut = `/tmp/docket-dry-${uniqueId}.html`;
+    const samplePath = path.resolve(__dirname, "../sample.md");
+    const code = await main([
+      samplePath,
+      "--dry-run",
+      dryRunOut,
+      "--trace",
+      traceOut,
+      "--quiet",
+    ]);
+    expect(code).toBe(0);
+
+    const traceFile = Bun.file(traceOut);
+    expect(await traceFile.exists()).toBe(true);
+    const traceJson = await traceFile.json();
+    expect(traceJson.resource).toBeDefined();
+    expect(traceJson.resource.attributes["service.name"]).toBe("docket");
+    expect(traceJson.spans.length).toBeGreaterThan(0);
+
+    // Clean up
+    if (fs.existsSync(traceOut)) fs.unlinkSync(traceOut);
+    if (fs.existsSync(dryRunOut)) fs.unlinkSync(dryRunOut);
+  });
+
   it("rejects unknown options, missing values, and conflicting sources", () => {
     expect(() => parseCliArgs(["--unknown"])).toThrow(CliUsageError);
     expect(() => parseCliArgs(["--theme"])).toThrow(CliUsageError);
     expect(() => parseCliArgs(["--title"])).toThrow(CliUsageError);
     expect(() => parseCliArgs(["--css"])).toThrow(CliUsageError);
+    expect(() => parseCliArgs(["--trace"])).toThrow(CliUsageError);
     expect(() => parseCliArgs(["--paste", "report.md"])).toThrow(CliUsageError);
     expect(() => parseCliArgs(["--watch", "--paste"])).toThrow(CliUsageError);
   });

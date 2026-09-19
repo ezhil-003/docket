@@ -8,7 +8,7 @@
   <p>
     <img src="https://img.shields.io/badge/runtime-Bun-000000?style=flat&logo=bun&logoColor=white" alt="Bun" />
     <img src="https://img.shields.io/badge/language-TypeScript-3178C6?style=flat&logo=typescript&logoColor=white" alt="TypeScript" />
-    <img src="https://img.shields.io/badge/tests-83%20passing-22c55e?style=flat" alt="83 tests passing" />
+    <img src="https://img.shields.io/badge/tests-95%20passing-22c55e?style=flat" alt="95 tests passing" />
     <img src="https://img.shields.io/badge/version-1.5.0-blue?style=flat" alt="Version 1.5.0" />
     <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-8b5cf6?style=flat" alt="MIT License" /></a>
   </p>
@@ -47,6 +47,7 @@ Write in the terminal, open an existing document, or pipe Markdown from another 
 | PDF output | Native Bun CDP Chromium driver with A4 sizing, margin-safe contract, font readiness checks, and atomic publication |
 | Themes & Custom CSS | Independent PDF themes (`modern`, `executive`, `technical`, `legal`, `boardroom`, `minimal`), custom CSS overrides (`--css`), & TUI palettes |
 | Watch & Preview | Continuous compilation (`-w, --watch`) monitoring Markdown & CSS changes, plus instant terminal ANSI preview (`--preview`) |
+| Observability & Tracing | Zero-dependency W3C OpenTelemetry tracing (`--trace`), structured NDJSON logs (`--json-log`), log levels (`-V, --verbose`, `-q, --quiet`), and standard OTLP/HTTP export |
 | TUI | Full-height canvas, scrollable sidebar, cross-platform native pickers (macOS/Windows/Linux), authentic Downloads/Docs presets, `Ctrl+E` external editor jumper, `Ctrl+S` buffer saving, and responsive layouts |
 | Reliability | Recoverable browser lifecycle, async cold-cache theme loading, cancellation, error cause preservation, and graceful crash handling |
 
@@ -151,8 +152,14 @@ docket document.md --dry-run report.html
 | `--css <file.css>` | Apply custom CSS stylesheet or corporate tokens | — |
 | `-w, --watch` | Watch input file and auto-recompile PDF on change | `false` |
 | `-p, --paste` | Read Markdown from STDIN | `false` |
-| `--force` | Bypass lint error gates | `false` |
+| `-O, --open` | Open generated PDF in default system viewer | `false` |
+| `--preview` | Preview Markdown in terminal using ANSI color output | `false` |
 | `--dry-run <out.html>` | Export intermediate HTML without browser rendering | — |
+| `--force` | Bypass lint error gates | `false` |
+| `-V, --verbose` | Enable verbose debug logging | `false` |
+| `-q, --quiet` | Suppress all terminal output except errors | `false` |
+| `--json-log` | Emit structured logs as JSON (NDJSON) to stderr | `false` |
+| `--trace <file.json>` | Export OpenTelemetry execution trace spans to JSON file | — |
 | `-v, --version` | Display Docket version | — |
 | `-h, --help` | Display usage | — |
 

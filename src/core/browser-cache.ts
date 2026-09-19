@@ -2,7 +2,9 @@ import { homedir } from "node:os";
 import path from "node:path";
 import { existsSync, mkdirSync } from "node:fs";
 import { $ } from "bun";
-import { DocketError } from "./errors";
+import { BrowserDownloadError, DocketError } from "./errors";
+import { logger } from "./logger";
+import { tracer } from "./telemetry";
 
 export const CHROME_HEADLESS_VERSION = "131.0.6778.85";
 
@@ -62,6 +64,7 @@ export function findSystemBrowser(): string | null {
   // 1. Explicit environment variable overrides
   const envPath = process.env.DOCKET_CHROME_PATH || process.env.PUPPETEER_EXECUTABLE_PATH;
   if (envPath && existsSync(envPath)) {
+    logger.debug("Found browser via environment variable", { path: envPath });
     return envPath;
   }
 
@@ -70,6 +73,7 @@ export function findSystemBrowser(): string | null {
   for (const bin of binariesToSearch) {
     const resolved = Bun.which(bin);
     if (resolved && existsSync(resolved)) {
+      logger.debug("Found browser via PATH resolution", { binary: bin, path: resolved });
       return resolved;
     }
   }
@@ -86,7 +90,10 @@ export function findSystemBrowser(): string | null {
       "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
     ];
     for (const cand of macCandidates) {
-      if (existsSync(cand)) return cand;
+      if (existsSync(cand)) {
+        logger.debug("Found browser in macOS standard Applications", { path: cand });
+        return cand;
+      }
     }
   } else if (platform === "win32") {
     const programFiles = process.env.PROGRAMFILES || "C:\\Program Files";
@@ -101,7 +108,10 @@ export function findSystemBrowser(): string | null {
       path.join(programFilesX86, "Microsoft", "Edge", "Application", "msedge.exe"),
     ];
     for (const cand of winCandidates) {
-      if (existsSync(cand)) return cand;
+      if (existsSync(cand)) {
+        logger.debug("Found browser in Windows standard paths", { path: cand });
+        return cand;
+      }
     }
   } else if (platform === "linux") {
     const linuxCandidates = [
@@ -112,7 +122,10 @@ export function findSystemBrowser(): string | null {
       "/snap/bin/chromium",
     ];
     for (const cand of linuxCandidates) {
-      if (existsSync(cand)) return cand;
+      if (existsSync(cand)) {
+        logger.debug("Found browser in Linux standard paths", { path: cand });
+        return cand;
+      }
     }
   }
 
@@ -131,77 +144,100 @@ export function getCachedBrowserDirectory(): string {
  * Google chrome-headless-shell (~40MB) automatically if no system browser exists.
  */
 export async function ensureChromiumBinary(): Promise<string> {
-  // 1. Check if a browser already exists on the system
-  const systemBrowser = findSystemBrowser();
-  if (systemBrowser) {
-    return systemBrowser;
-  }
-
-  // 2. Check platform support for automatic downloading
-  const platformInfo = getBrowserPlatformInfo();
-  if (!platformInfo) {
-    throw new DocketError(
-      `Unsupported platform (${process.platform}-${process.arch}) for automatic Chromium download.`,
-      "ERR_BROWSER_UNSUPPORTED",
-      "Install Google Chrome or Chromium manually and set DOCKET_CHROME_PATH.",
-      true,
-      { stage: "render" }
-    );
-  }
-
-  const cacheDir = getCachedBrowserDirectory();
-  const binaryPath = path.join(cacheDir, platformInfo.binaryRelativePath);
-
-  if (existsSync(binaryPath)) {
-    return binaryPath;
-  }
-
-  // 3. Download Google's official chrome-headless-shell
-  mkdirSync(cacheDir, { recursive: true });
-  const downloadUrl = `https://storage.googleapis.com/chrome-for-testing-public/${CHROME_HEADLESS_VERSION}/${platformInfo.platformKey}/${platformInfo.zipFilename}`;
-  const tempZip = path.join(cacheDir, `temp-${platformInfo.zipFilename}`);
-
-  try {
-    const response = await fetch(downloadUrl);
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status} ${response.statusText} fetching ${downloadUrl}`);
+  return tracer.withSpan("docket.browser.ensure_binary", async (span) => {
+    // 1. Check if a browser already exists on the system
+    const systemBrowser = findSystemBrowser();
+    if (systemBrowser) {
+      span.setAttributes({
+        "browser.source": "system",
+        "browser.path": systemBrowser,
+      });
+      return systemBrowser;
     }
 
-    const zipBuffer = await response.arrayBuffer();
-    await Bun.write(tempZip, zipBuffer);
-
-    // Unpack archive
-    if (process.platform === "win32") {
-      await $`powershell -NoProfile -NonInteractive -Command "Expand-Archive -Path '${tempZip}' -DestinationPath '${cacheDir}' -Force"`.quiet();
-    } else {
-      await $`unzip -q -o ${tempZip} -d ${cacheDir}`.quiet();
-      await $`chmod +x ${binaryPath}`.quiet();
+    // 2. Check platform support for automatic downloading
+    const platformInfo = getBrowserPlatformInfo();
+    if (!platformInfo) {
+      throw new DocketError(
+        `Unsupported platform (${process.platform}-${process.arch}) for automatic Chromium download.`,
+        "ERR_BROWSER_UNSUPPORTED",
+        "Install Google Chrome or Chromium manually and set DOCKET_CHROME_PATH.",
+        true,
+        { stage: "browser" }
+      );
     }
 
-    // Clean up temporary zip
+    const cacheDir = getCachedBrowserDirectory();
+    const binaryPath = path.join(cacheDir, platformInfo.binaryRelativePath);
+
+    if (existsSync(binaryPath)) {
+      span.setAttributes({
+        "browser.source": "cache",
+        "browser.path": binaryPath,
+      });
+      logger.debug("Using cached chrome-headless-shell", { binaryPath });
+      return binaryPath;
+    }
+
+    // 3. Download Google's official chrome-headless-shell
+    mkdirSync(cacheDir, { recursive: true });
+    const downloadUrl = `https://storage.googleapis.com/chrome-for-testing-public/${CHROME_HEADLESS_VERSION}/${platformInfo.platformKey}/${platformInfo.zipFilename}`;
+    const tempZip = path.join(cacheDir, `temp-${platformInfo.zipFilename}`);
+
+    logger.info("Downloading headless Chromium shell...", {
+      version: CHROME_HEADLESS_VERSION,
+      platform: platformInfo.platformKey,
+      destination: cacheDir,
+    });
+
+    span.setAttributes({
+      "browser.source": "download",
+      "browser.download_url": downloadUrl,
+    });
+
     try {
-      await Bun.file(tempZip).delete();
-    } catch {
-      // Best-effort cleanup
-    }
+      const response = await fetch(downloadUrl);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status} ${response.statusText} fetching ${downloadUrl}`);
+      }
 
-    if (!existsSync(binaryPath)) {
-      throw new Error(`Binary was not found at expected path: ${binaryPath}`);
-    }
+      const zipBuffer = await response.arrayBuffer();
+      await Bun.write(tempZip, zipBuffer);
 
-    return binaryPath;
-  } catch (error) {
-    try {
-      await Bun.file(tempZip).delete();
-    } catch {
-      // Best-effort cleanup
+      // Unpack archive
+      if (process.platform === "win32") {
+        await $`powershell -NoProfile -NonInteractive -Command "Expand-Archive -Path '${tempZip}' -DestinationPath '${cacheDir}' -Force"`.quiet();
+      } else {
+        await $`unzip -q -o ${tempZip} -d ${cacheDir}`.quiet();
+        await $`chmod +x ${binaryPath}`.quiet();
+      }
+
+      // Clean up temporary zip
+      try {
+        await Bun.file(tempZip).delete();
+      } catch {
+        // Best-effort cleanup
+      }
+
+      if (!existsSync(binaryPath)) {
+        throw new Error(`Binary was not found at expected path after extraction: ${binaryPath}`);
+      }
+
+      logger.info("Headless Chromium installed and cached successfully", { binaryPath });
+      return binaryPath;
+    } catch (error) {
+      try {
+        await Bun.file(tempZip).delete();
+      } catch {
+        // Best-effort cleanup
+      }
+      const dlError = new BrowserDownloadError(
+        `Failed to download headless Chromium: ${error instanceof Error ? error.message : String(error)}`,
+        "Check your internet connection, or install Google Chrome and set DOCKET_CHROME_PATH.",
+        { cause: error },
+      );
+      logger.error("Chromium download failed", dlError);
+      throw dlError;
     }
-    throw new DocketError(
-      `Failed to download headless Chromium: ${error instanceof Error ? error.message : String(error)}`,
-      "ERR_BROWSER_DOWNLOAD_FAILED",
-      "Check your internet connection, or install Google Chrome and set DOCKET_CHROME_PATH.",
-      true,
-      { stage: "render", cause: error }
-    );
-  }
+  });
 }

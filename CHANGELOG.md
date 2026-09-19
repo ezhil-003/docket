@@ -22,7 +22,10 @@ No changes yet.
 - **ANSI-Aware Word Wrapping**: Integrated `Bun.wrapAnsi()` in `src/tui/app.ts` for clean message and diagnostic formatting at sidebar boundaries.
 - **Native Zero-Copy HTML Escaping**: Replaced regex-based string replacements across `assemble.ts` and `parse.ts` with `Bun.escapeHTML()`.
 - **Microtask-Free Cache Reading (`Bun.peek()`)**: Integrated `Bun.peek()` for zero-microtick synchronous access to prewarmed Shiki highlighter and theme CSS singletons.
-- **Zero-Dependency Native Testing (`bun:test`)**: Migrated all 83 unit and integration tests from Vitest to native `bun:test`, cutting test suite runtime from ~1.4s to **~300ms** with zero npm test dependencies.
+- **Zero-Dependency OpenTelemetry Tracing (`src/core/telemetry.ts`)**: Implemented native W3C TraceContext generation and distributed tracing with `AsyncLocalStorage` context propagation. Automatically creates hierarchical spans across all pipeline stages (`docket.render`, `docket.lint`, `docket.assemble_html`, `docket.cdp.launch_browser`, `docket.cdp.set_content`, `docket.cdp.wait_for_fonts`, `docket.cdp.print_to_pdf`, `docket.fs.atomic_publish`). Supports local JSON trace exporting via `--trace <file.json>` and direct zero-dependency OTLP/HTTP streaming to any OpenTelemetry collector (Jaeger, Datadog, Tempo) via standard `OTEL_EXPORTER_OTLP_ENDPOINT`.
+- **Production-Grade Structured Logging (`src/core/logger.ts`)**: Built structured logger emitting NDJSON (`--json-log`) or human-friendly colorized console logs. Automatically correlates logs with the active OpenTelemetry `traceId`, `spanId`, and execution `stage`. Configurable via `--verbose` (`-V`), `--quiet` (`-q`), or `DOCKET_LOG_LEVEL`.
+- **Observable Error Hierarchy (`src/core/errors.ts`)**: Hardened error system to capture active `traceId`, `spanId`, `stage`, `userHint`, and cause chains. Added `CdpError` and `BrowserDownloadError` subclasses, and full `toJSON()` error serialization for structured logging.
+- **Zero-Dependency Native Testing (`bun:test`)**: Migrated all 95 unit and integration tests from Vitest to native `bun:test`, cutting test suite runtime from ~1.4s to **~400ms** with zero npm test dependencies.
 
 ### Changed
 

@@ -8,6 +8,8 @@ import { lintMarkdown } from "./core/lint";
 import { CliUsageError, formatDocketError } from "./core/errors";
 import { BunFileSystem } from "./core/fs";
 import { expandHomeDir } from "./core/paths";
+import { logger } from "./core/logger";
+import { tracer } from "./core/telemetry";
 
 const VERSION = "1.5.0";
 const fileSystem = new BunFileSystem();
@@ -24,6 +26,10 @@ export interface CliOptions {
   dryRunHtmlPath?: string;
   preview?: boolean;
   open?: boolean;
+  verbose?: boolean;
+  quiet?: boolean;
+  jsonLog?: boolean;
+  tracePath?: string;
 }
 
 export function getHelpText(): string {
@@ -47,6 +53,10 @@ OPTIONS:
   --preview                Preview Markdown in terminal using ANSI color output
   --dry-run <out.html>     Export intermediate HTML document without starting Chromium
   --force                  Bypass pre-conversion linting error gates
+  -V, --verbose            Enable verbose debug logging
+  -q, --quiet              Suppress all output except errors
+  --json-log               Emit structured logs as JSON (NDJSON) to stderr
+  --trace <file.json>      Export execution OpenTelemetry trace spans to JSON file
   -v, --version            Display Docket version
   -h, --help               Show this help message
 
@@ -76,6 +86,10 @@ export function parseCliArgs(argv: readonly string[]): CliOptions | "help" | "ve
   let dryRunHtmlPath: string | undefined;
   let preview = false;
   let open = false;
+  let verbose = false;
+  let quiet = false;
+  let jsonLog = false;
+  let tracePath: string | undefined;
 
   const requireValue = (index: number, flag: string): string => {
     const value = argv[index + 1];
@@ -108,6 +122,14 @@ export function parseCliArgs(argv: readonly string[]): CliOptions | "help" | "ve
       preview = true;
     } else if (arg === "-O" || arg === "--open") {
       open = true;
+    } else if (arg === "-V" || arg === "--verbose" || arg === "--debug") {
+      verbose = true;
+    } else if (arg === "-q" || arg === "--quiet") {
+      quiet = true;
+    } else if (arg === "--json-log" || arg === "--json") {
+      jsonLog = true;
+    } else if (arg === "--trace") {
+      tracePath = requireValue(index++, arg);
     } else if (arg.startsWith("-")) {
       throw new CliUsageError(`Unknown option '${arg}'.`);
     } else if (inputPath) {
@@ -120,7 +142,7 @@ export function parseCliArgs(argv: readonly string[]): CliOptions | "help" | "ve
   if (paste && inputPath) throw new CliUsageError("Use either an input file or --paste, not both.");
   if (watch && paste) throw new CliUsageError("Watch mode requires an input file and cannot be used with STDIN --paste.");
 
-  return {
+  const options: CliOptions = {
     themeId,
     outputPath,
     inputPath,
@@ -133,6 +155,12 @@ export function parseCliArgs(argv: readonly string[]): CliOptions | "help" | "ve
     preview,
     open,
   };
+  if (verbose) options.verbose = true;
+  if (quiet) options.quiet = true;
+  if (jsonLog) options.jsonLog = true;
+  if (tracePath) options.tracePath = tracePath;
+
+  return options;
 }
 
 export async function readStdin(maxBytes = 25 * 1024 * 1024): Promise<string> {
@@ -242,6 +270,7 @@ async function runWatchMode(parsed: CliOptions): Promise<void> {
 }
 
 export async function main(argv = process.argv.slice(2)): Promise<number> {
+  let parsedOptions: CliOptions | undefined;
   try {
     const parsed = parseCliArgs(argv);
     if (parsed === "help") {
@@ -253,6 +282,18 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
       console.log(`Docket v${VERSION} (bun v${Bun.version}${revision})`);
       return 0;
     }
+
+    parsedOptions = parsed;
+
+    if (parsed.jsonLog) {
+      logger.setFormat("json");
+    }
+    if (parsed.quiet) {
+      logger.setLevel("silent");
+    } else if (parsed.verbose) {
+      logger.setLevel("debug");
+    }
+
     if (!parsed.paste && !parsed.inputPath) {
       if (process.stdin.isTTY) {
         const { runTuiApp } = await import("./tui/app");
@@ -271,7 +312,9 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
     let title = parsed.title ?? "Docket Document";
     let outputPath = parsed.outputPath;
     if (parsed.paste) {
-      console.log("[docket] Reading Markdown from STDIN...");
+      if (!parsed.quiet && !parsed.jsonLog) {
+        console.log("[docket] Reading Markdown from STDIN...");
+      }
       markdownSource = await readStdin();
       outputPath ??= "docket-output.pdf";
     } else {
@@ -289,19 +332,29 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
 
     const lintResult = lintMarkdown(markdownSource);
     if (!lintResult.isValid && !parsed.forceLint) {
-      console.error(`\n[docket] Pre-conversion linting failed with ${lintResult.errors.length} error(s):`);
-      for (const error of lintResult.errors) {
-        console.error(`  🔴 Line ${error.line} [${error.ruleId}]: ${error.message}`);
-        if (error.suggestion) console.error(`     ↳ Hint: ${error.suggestion}`);
+      if (parsed.jsonLog) {
+        logger.error("Pre-conversion linting failed", undefined, { errors: lintResult.errors });
+      } else {
+        console.error(`\n[docket] Pre-conversion linting failed with ${lintResult.errors.length} error(s):`);
+        for (const error of lintResult.errors) {
+          console.error(`  🔴 Line ${error.line} [${error.ruleId}]: ${error.message}`);
+          if (error.suggestion) console.error(`     ↳ Hint: ${error.suggestion}`);
+        }
+        console.error("\nPDF conversion aborted. Fix the errors or use '--force'.\n");
       }
-      console.error("\nPDF conversion aborted. Fix the errors or use '--force'.\n");
       return 1;
     }
     for (const warning of lintResult.warnings) {
-      console.warn(`  ⚠️ Line ${warning.line} [${warning.ruleId}]: ${warning.message}`);
+      if (parsed.jsonLog) {
+        logger.warn(`Lint warning: ${warning.message}`, { line: warning.line, ruleId: warning.ruleId });
+      } else if (!parsed.quiet) {
+        console.warn(`  ⚠️ Line ${warning.line} [${warning.ruleId}]: ${warning.message}`);
+      }
     }
 
-    console.log(`[docket] Converting using theme: '${parsed.themeId}'...`);
+    if (!parsed.quiet && !parsed.jsonLog) {
+      console.log(`[docket] Converting using theme: '${parsed.themeId}'...`);
+    }
     const renderResult = await renderPdf({
       markdownSource,
       themeId: parsed.themeId,
@@ -312,10 +365,20 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
       dryRunOnly: Boolean(parsed.dryRunHtmlPath),
       skipLinting: parsed.forceLint,
     });
-    console.log(parsed.dryRunHtmlPath ? "✓ [docket] HTML exported successfully!" : "✓ [docket] PDF generated successfully!");
-    console.log(`  File:     ${renderResult.outputPath}`);
-    console.log(`  Size:     ${(renderResult.bytes / 1024).toFixed(1)} KB`);
-    console.log(`  Time:     ${(renderResult.durationMs / 1000).toFixed(2)}s`);
+
+    if (parsed.jsonLog) {
+      logger.info(parsed.dryRunHtmlPath ? "HTML exported successfully" : "PDF generated successfully", {
+        file: renderResult.outputPath,
+        bytes: renderResult.bytes,
+        durationMs: renderResult.durationMs,
+        dryRun: Boolean(parsed.dryRunHtmlPath),
+      });
+    } else if (!parsed.quiet) {
+      console.log(parsed.dryRunHtmlPath ? "✓ [docket] HTML exported successfully!" : "✓ [docket] PDF generated successfully!");
+      console.log(`  File:     ${renderResult.outputPath}`);
+      console.log(`  Size:     ${(renderResult.bytes / 1024).toFixed(1)} KB`);
+      console.log(`  Time:     ${(renderResult.durationMs / 1000).toFixed(2)}s`);
+    }
 
     // Handle --open flag
     if (parsed.open && !parsed.dryRunHtmlPath) {
@@ -330,9 +393,29 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
 
     return 0;
   } catch (error) {
-    console.error(formatDocketError(error));
+    if (parsedOptions?.jsonLog) {
+      logger.error("Operation failed", error);
+    } else {
+      console.error(formatDocketError(error));
+    }
     return 1;
   } finally {
+    if (parsedOptions?.tracePath) {
+      try {
+        const traceJson = tracer.exportTraceJson();
+        await Bun.write(parsedOptions.tracePath, traceJson);
+        if (parsedOptions.verbose) {
+          logger.debug(`Traces exported to ${parsedOptions.tracePath}`);
+        }
+      } catch (traceErr) {
+        logger.warn("Failed to write trace file", { error: String(traceErr) });
+      }
+    }
+    try {
+      await tracer.flushOtlp();
+    } catch {
+      // Observability must never throw during shutdown
+    }
     await shutdownRenderer();
   }
 }

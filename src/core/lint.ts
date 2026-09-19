@@ -1,5 +1,3 @@
-import MarkdownIt from "markdown-it";
-
 export interface LintMessage {
   line: number;
   column?: number;
@@ -16,8 +14,6 @@ export interface LintResult {
   warnings: LintMessage[];
   all: LintMessage[];
 }
-
-const mdInstance = new MarkdownIt({ html: true });
 
 function result(messages: LintMessage[]): LintResult {
   const errors = messages.filter((message) => message.severity === "error");
@@ -225,7 +221,7 @@ export function lintMarkdown(source: string): LintResult {
   }
 
   try {
-    mdInstance.parse(source, {});
+    Bun.markdown.html(source);
   } catch (error) {
     messages.push({
       line: 1,

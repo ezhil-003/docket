@@ -1,5 +1,7 @@
 import { ensureChromiumBinary } from "./browser-cache";
-import { DocketError } from "./errors";
+import { CdpError, DocketError } from "./errors";
+import { logger } from "./logger";
+import { tracer } from "./telemetry";
 
 export interface CdpPrintOptions {
   printBackground?: boolean;
@@ -31,8 +33,10 @@ export class CdpPage {
 
   async connect(timeoutMs = 15_000): Promise<void> {
     return new Promise((resolve, reject) => {
+      logger.debug("Connecting to CDP page WebSocket", { wsUrl: this.wsUrl, targetId: this.targetId });
+
       const timer = setTimeout(() => {
-        reject(new DocketError(`CDP WebSocket connection timed out after ${timeoutMs}ms`, "ERR_CDP_TIMEOUT", "Check if Chromium is responsive.", true, { stage: "render" }));
+        reject(new CdpError(`CDP WebSocket connection timed out after ${timeoutMs}ms`, "Check if Chromium is responsive."));
       }, timeoutMs);
 
       try {
@@ -41,12 +45,15 @@ export class CdpPage {
 
         ws.onopen = () => {
           clearTimeout(timer);
+          logger.debug("CDP WebSocket connected", { targetId: this.targetId });
           resolve();
         };
 
         ws.onerror = (event) => {
           clearTimeout(timer);
-          reject(new DocketError(`CDP WebSocket error: ${String(event)}`, "ERR_CDP_SOCKET", "Chromium DevTools protocol encountered an error.", true, { stage: "render" }));
+          const cdpErr = new CdpError(`CDP WebSocket error: ${String(event)}`, "Chromium DevTools protocol encountered an error.");
+          logger.error("CDP WebSocket encountered an error", cdpErr);
+          reject(cdpErr);
         };
 
         ws.onmessage = (event) => {
@@ -69,6 +76,7 @@ export class CdpPage {
 
         ws.onclose = () => {
           this.isClosed = true;
+          logger.debug("CDP WebSocket closed", { targetId: this.targetId });
           for (const [id, cb] of this.pendingCallbacks.entries()) {
             if (cb.timer) clearTimeout(cb.timer);
             cb.reject(new Error("CDP socket closed unexpectedly"));
@@ -84,14 +92,18 @@ export class CdpPage {
 
   send(method: string, params: Record<string, unknown> = {}, timeoutMs = 30_000): Promise<any> {
     if (this.isClosed || !this.ws || this.ws.readyState !== WebSocket.OPEN) {
-      return Promise.reject(new Error(`Cannot send CDP command '${method}': Page is closed`));
+      return Promise.reject(new CdpError(`Cannot send CDP command '${method}': Page is closed`));
     }
 
     const id = this.messageId++;
+    logger.debug(`Sending CDP command: ${method}`, { id, method });
+
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pendingCallbacks.delete(id);
-        reject(new DocketError(`CDP command '${method}' timed out after ${timeoutMs}ms`, "ERR_CDP_CMD_TIMEOUT", "Check document size or syntax errors.", true, { stage: "render" }));
+        const err = new CdpError(`CDP command '${method}' timed out after ${timeoutMs}ms`, "Check document size or script execution.");
+        logger.error(`CDP command '${method}' timed out`, err);
+        reject(err);
       }, timeoutMs);
 
       this.pendingCallbacks.set(id, { resolve, reject, timer });
@@ -143,7 +155,7 @@ export class CdpPage {
 
     const result = await this.send("Page.printToPDF", params, 60_000);
     if (!result || typeof result.data !== "string") {
-      throw new DocketError("CDP Page.printToPDF did not return PDF base64 data", "ERR_CDP_PDF_FAILED", "Verify document layout and page size.", true, { stage: "render" });
+      throw new CdpError("CDP Page.printToPDF did not return PDF base64 data", "Verify document layout and page size.");
     }
 
     return Buffer.from(result.data, "base64");
@@ -184,12 +196,12 @@ export class CdpBrowser {
 
   async newPage(): Promise<CdpPage> {
     if (!this.connected) {
-      throw new Error("Chromium browser is not connected");
+      throw new CdpError("Chromium browser is not connected");
     }
 
     const response = await fetch(`http://127.0.0.1:${this.port}/json/new?about:blank`, { method: "PUT" });
     if (!response.ok) {
-      throw new Error(`Failed to create page: HTTP ${response.status} ${response.statusText}`);
+      throw new CdpError(`Failed to create page: HTTP ${response.status} ${response.statusText}`);
     }
 
     const tab = await response.json();
@@ -214,64 +226,74 @@ export class CdpBrowser {
  * Launches a headless Chromium browser using Bun.spawn and captures the DevTools WebSocket port.
  */
 export async function launchCdpBrowser(options: CdpBrowserOptions = {}): Promise<CdpBrowser> {
-  const binaryPath = options.executablePath || (await ensureChromiumBinary());
-  const timeoutMs = options.timeoutMs ?? 15_000;
+  return tracer.withSpan("docket.cdp.launch_browser", async (span) => {
+    const binaryPath = options.executablePath || (await ensureChromiumBinary());
+    const timeoutMs = options.timeoutMs ?? 15_000;
 
-  const args = [
-    binaryPath,
-    "--headless=new",
-    "--remote-debugging-port=0",
-    "--hide-scrollbars",
-    "--mute-audio",
-    "--disable-gpu",
-    "--no-sandbox",
-    "--disable-setuid-sandbox",
-    "--disable-dev-shm-usage",
-    "--no-first-run",
-  ];
+    span.setAttribute("browser.binary_path", binaryPath);
+    logger.debug("Launching headless Chromium for CDP", { binaryPath });
 
-  const proc = Bun.spawn(args, {
-    stderr: "pipe",
-    stdout: "ignore",
-  });
+    const args = [
+      binaryPath,
+      "--headless=new",
+      "--remote-debugging-port=0",
+      "--hide-scrollbars",
+      "--mute-audio",
+      "--disable-gpu",
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-dev-shm-usage",
+      "--no-first-run",
+    ];
 
-  const reader = proc.stderr.getReader();
-  const decoder = new TextDecoder();
-  let wsUrl = "";
-  let port = 0;
-  let buffer = "";
+    const proc = Bun.spawn(args, {
+      stderr: "pipe",
+      stdout: "ignore",
+    });
 
-  const timer = setTimeout(() => {
-    try { proc.kill(); } catch {}
-  }, timeoutMs);
+    const reader = proc.stderr.getReader();
+    const decoder = new TextDecoder();
+    let wsUrl = "";
+    let port = 0;
+    let buffer = "";
 
-  try {
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const match = buffer.match(/DevTools listening on (ws:\/\/127\.0\.0\.1:(\d+)\/[^\s]+)/);
-      if (match && match[1] && match[2]) {
-        wsUrl = match[1];
-        port = parseInt(match[2], 10);
-        break;
+    const timer = setTimeout(() => {
+      try { proc.kill(); } catch {}
+    }, timeoutMs);
+
+    try {
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const match = buffer.match(/DevTools listening on (ws:\/\/127\.0\.0\.1:(\d+)\/[^\s]+)/);
+        if (match && match[1] && match[2]) {
+          wsUrl = match[1];
+          port = parseInt(match[2], 10);
+          break;
+        }
       }
+    } finally {
+      clearTimeout(timer);
+      try { reader.releaseLock(); } catch {}
     }
-  } finally {
-    clearTimeout(timer);
-    try { reader.releaseLock(); } catch {}
-  }
 
-  if (!wsUrl || !port) {
-    try { proc.kill(); } catch {}
-    throw new DocketError(
-      "Failed to read DevTools WebSocket URL from headless Chromium startup.",
-      "ERR_CDP_LAUNCH_FAILED",
-      "Ensure Chromium has required dependencies installed and port binding is allowed.",
-      true,
-      { stage: "render" }
-    );
-  }
+    if (!wsUrl || !port) {
+      try { proc.kill(); } catch {}
+      const launchErr = new CdpError(
+        "Failed to read DevTools WebSocket URL from headless Chromium startup.",
+        "Ensure Chromium has required dependencies installed and port binding is allowed.",
+      );
+      logger.error("Headless Chromium launch failed", launchErr);
+      throw launchErr;
+    }
 
-  return new CdpBrowser(proc, port, wsUrl);
+    span.setAttributes({
+      "browser.port": port,
+      "browser.ws_url": wsUrl,
+    });
+
+    logger.debug("Headless Chromium launched successfully", { port, wsUrl });
+    return new CdpBrowser(proc, port, wsUrl);
+  });
 }

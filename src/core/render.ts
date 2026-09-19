@@ -2,12 +2,14 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { assembleHtmlAsync } from "./assemble";
 import { lintMarkdown } from "./lint";
-import { DocketError, MarkdownLintError, RenderError, PuppeteerRenderError } from "./errors";
+import { DocketError, MarkdownLintError, PuppeteerRenderError } from "./errors";
 import type { ThemeId } from "./themes";
 import { normalizePdfOutputPath } from "./output";
 import { extractFrontmatter } from "./frontmatter";
 import { launchCdpBrowser, CdpBrowser, CdpPage } from "./cdp";
-import { NodeFileSystem } from "./fs";
+import { BunFileSystem } from "./fs";
+import { tracer } from "./telemetry";
+import { logger } from "./logger";
 
 export type { CdpBrowser as Browser, CdpPage as Page };
 
@@ -115,93 +117,157 @@ function throwIfAborted(signal?: AbortSignal): void {
   }
 }
 
-const defaultFileSystem = new NodeFileSystem();
+const defaultFileSystem = new BunFileSystem();
 
 /** Executes the conversion pipeline and publishes only complete output files. */
 export async function renderPdf(
   options: RenderOptions,
   browserManager: BrowserManager = defaultBrowserManager,
 ): Promise<RenderResult> {
-  const startTime = Date.now();
-  const timeoutMs = options.timeoutMs ?? 30_000;
-  throwIfAborted(options.signal);
-
-  if (!options.skipLinting) {
-    const lintResult = lintMarkdown(options.markdownSource);
-    if (!lintResult.isValid) {
-      const firstError = lintResult.errors[0];
-      if (firstError) {
-        throw new MarkdownLintError(
-          `Critical syntax error on line ${firstError.line}: ${firstError.message}`,
-          firstError.suggestion,
-        );
-      }
-    }
-  }
-
-  const frontmatter = extractFrontmatter(options.markdownSource);
-  const themeId = options.themeId ?? frontmatter.theme ?? "executive";
-  const customCssPath = options.customCssPath ?? (typeof frontmatter.metadata.customCss === "string" ? frontmatter.metadata.customCss : undefined);
-  const outputPath = await normalizePdfOutputPath(options.outputPath);
-  const title = options.title ?? frontmatter.title ?? (path.basename(outputPath, ".pdf") || "Docket Document");
-  const html = await assembleHtmlAsync(options.markdownSource, themeId, title, customCssPath);
-
-  if (options.dryRunHtmlPath) {
-    await defaultFileSystem.writeTextAtomic(options.dryRunHtmlPath, html);
-    if (options.dryRunOnly) {
-      const stats = await fs.stat(options.dryRunHtmlPath);
-      return {
-        outputPath: options.dryRunHtmlPath,
-        bytes: stats.size,
-        durationMs: Date.now() - startTime,
-        title,
-      };
-    }
-  }
-  await defaultFileSystem.ensureDirectory(path.dirname(outputPath));
-
-  throwIfAborted(options.signal);
-  let page: CdpPage | null = null;
-  const temporaryPdfPath = `${outputPath}.tmp-${Bun.randomUUIDv7()}`;
-  try {
-    page = await browserManager.acquirePage();
+  return tracer.withSpan("docket.render", async (rootSpan) => {
+    const startTime = Date.now();
+    const timeoutMs = options.timeoutMs ?? 30_000;
     throwIfAborted(options.signal);
 
-    await page.setDocumentContent(html);
-    throwIfAborted(options.signal);
-
-    await page.waitForFonts(Math.min(timeoutMs, 10_000));
-    await page.evaluate("document.body.offsetHeight");
-    throwIfAborted(options.signal);
-
-    const pdfBuffer = await page.printToPdf({
-      printBackground: true,
-      preferCSSPageSize: true,
-      paperWidth: 8.27,
-      paperHeight: 11.69,
-      marginTop: 0,
-      marginBottom: 0,
-      marginLeft: 0,
-      marginRight: 0,
+    rootSpan.setAttributes({
+      "docket.output_target": options.outputPath,
+      "docket.theme": options.themeId ?? "executive",
+      "docket.skip_linting": Boolean(options.skipLinting),
+      "docket.dry_run": Boolean(options.dryRunHtmlPath),
     });
 
-    await Bun.write(temporaryPdfPath, pdfBuffer);
-    await fs.rename(temporaryPdfPath, outputPath);
+    logger.debug("Initiating render pipeline", {
+      outputPath: options.outputPath,
+      themeId: options.themeId,
+    });
 
-    return { outputPath, bytes: pdfBuffer.length, durationMs: Date.now() - startTime, title };
-  } catch (error) {
-    try { await Bun.file(temporaryPdfPath).delete(); } catch { /* best effort */ }
-    if (error instanceof DocketError) {
-      throw error;
+    if (!options.skipLinting) {
+      await tracer.withSpan("docket.lint", (lintSpan) => {
+        const lintResult = lintMarkdown(options.markdownSource);
+        lintSpan.setAttributes({
+          "lint.valid": lintResult.isValid,
+          "lint.errors_count": lintResult.errors.length,
+          "lint.warnings_count": lintResult.warnings.length,
+        });
+
+        if (!lintResult.isValid) {
+          const firstError = lintResult.errors[0];
+          if (firstError) {
+            throw new MarkdownLintError(
+              `Critical syntax error on line ${firstError.line}: ${firstError.message}`,
+              firstError.suggestion,
+            );
+          }
+        }
+      });
     }
-    throw new PuppeteerRenderError(
-      `PDF conversion failed: ${error instanceof Error ? error.message : String(error)}`,
-      "Verify Chromium, fonts, output permissions, and available disk space.",
-      { cause: error },
-    );
-  } finally {
-    if (page) {
-      try { await page.close(); } catch { /* browser manager remains reusable */ }
+
+    const frontmatter = extractFrontmatter(options.markdownSource);
+    const themeId = options.themeId ?? frontmatter.theme ?? "executive";
+    const customCssPath = options.customCssPath ?? (typeof frontmatter.metadata.customCss === "string" ? frontmatter.metadata.customCss : undefined);
+    const outputPath = await normalizePdfOutputPath(options.outputPath);
+    const title = options.title ?? frontmatter.title ?? (path.basename(outputPath, ".pdf") || "Docket Document");
+
+    rootSpan.setAttribute("docket.document_title", title);
+
+    const html = await tracer.withSpan("docket.assemble_html", async (assembleSpan) => {
+      const resultHtml = await assembleHtmlAsync(options.markdownSource, themeId, title, customCssPath);
+      assembleSpan.setAttribute("html.byte_length", Buffer.byteLength(resultHtml));
+      return resultHtml;
+    });
+
+    if (options.dryRunHtmlPath) {
+      await defaultFileSystem.writeTextAtomic(options.dryRunHtmlPath, html);
+      if (options.dryRunOnly) {
+        const stats = await fs.stat(options.dryRunHtmlPath);
+        const durationMs = Date.now() - startTime;
+        logger.info("Dry-run HTML export completed", {
+          htmlPath: options.dryRunHtmlPath,
+          bytes: stats.size,
+          durationMs,
+        });
+        return {
+          outputPath: options.dryRunHtmlPath,
+          bytes: stats.size,
+          durationMs,
+          title,
+        };
+      }
     }
-  }
+    await defaultFileSystem.ensureDirectory(path.dirname(outputPath));
+
+    throwIfAborted(options.signal);
+    let page: CdpPage | null = null;
+    const temporaryPdfPath = `${outputPath}.tmp-${Bun.randomUUIDv7()}`;
+
+    try {
+      page = await tracer.withSpan("docket.cdp.acquire_page", async () => {
+        return browserManager.acquirePage();
+      });
+      throwIfAborted(options.signal);
+
+      await tracer.withSpan("docket.cdp.set_content", async () => {
+        await page!.setDocumentContent(html);
+      });
+      throwIfAborted(options.signal);
+
+      await tracer.withSpan("docket.cdp.wait_for_fonts", async () => {
+        await page!.waitForFonts(Math.min(timeoutMs, 10_000));
+        await page!.evaluate("document.body.offsetHeight");
+      });
+      throwIfAborted(options.signal);
+
+      const pdfBuffer = await tracer.withSpan("docket.cdp.print_to_pdf", async (printSpan) => {
+        const buffer = await page!.printToPdf({
+          printBackground: true,
+          preferCSSPageSize: true,
+          paperWidth: 8.27,
+          paperHeight: 11.69,
+          marginTop: 0,
+          marginBottom: 0,
+          marginLeft: 0,
+          marginRight: 0,
+        });
+        printSpan.setAttribute("pdf.byte_length", buffer.length);
+        return buffer;
+      });
+
+      await tracer.withSpan("docket.fs.atomic_publish", async () => {
+        await Bun.write(temporaryPdfPath, pdfBuffer);
+        await fs.rename(temporaryPdfPath, outputPath);
+      });
+
+      const durationMs = Date.now() - startTime;
+      rootSpan.setAttributes({
+        "pdf.output_path": outputPath,
+        "pdf.bytes": pdfBuffer.length,
+        "pdf.duration_ms": durationMs,
+      });
+
+      logger.info("PDF render pipeline completed successfully", {
+        outputPath,
+        bytes: pdfBuffer.length,
+        durationMs,
+      });
+
+      return { outputPath, bytes: pdfBuffer.length, durationMs, title };
+    } catch (error) {
+      try { await Bun.file(temporaryPdfPath).delete(); } catch { /* best effort */ }
+      if (error instanceof DocketError) {
+        logger.error("Render pipeline aborted with Docket error", error, { code: error.code });
+        throw error;
+      }
+      const renderError = new PuppeteerRenderError(
+        `PDF conversion failed: ${error instanceof Error ? error.message : String(error)}`,
+        "Verify Chromium, fonts, output permissions, and available disk space.",
+        { cause: error },
+      );
+      logger.error("Render pipeline failed unexpectedly", renderError);
+      throw renderError;
+    } finally {
+      if (page) {
+        try { await page.close(); } catch { /* browser manager remains reusable */ }
+      }
+    }
+  });
 }
