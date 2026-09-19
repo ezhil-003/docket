@@ -13,10 +13,13 @@ import {
   type KeyEvent,
 } from "@opentui/core";
 import path from "node:path";
+import fs from "node:fs";
+import os from "node:os";
 import { renderPdf, shutdownRenderer } from "../core/render";
 import { THEME_IDS, THEMES, type ThemeId } from "../core/themes";
 import { lintMarkdown, type LintResult } from "../core/lint";
 import { DocketError, formatDocketError } from "../core/errors";
+import { logger } from "../core/logger";
 import { NodeFileSystem } from "../core/fs";
 import { resolvePdfOutputPath, derivePdfFilename } from "../core/output";
 import { pickFolderNative, pickFileNative } from "../core/native-picker";
@@ -84,6 +87,28 @@ function makeMiniButton(renderer: Renderer, label: string, action: () => void): 
 }
 
 export async function runTuiApp(): Promise<void> {
+  const logDir = path.join(os.homedir(), ".cache", "docket", "logs");
+  let logStream: fs.WriteStream | undefined;
+  try {
+    fs.mkdirSync(logDir, { recursive: true });
+    logStream = fs.createWriteStream(path.join(logDir, "docket.log"), { flags: "a" });
+  } catch {
+    // Ignore if cache directory cannot be created
+  }
+
+  let onLogRecord: ((record: import("../core/logger").LogRecord) => void) | undefined;
+  const cleanupLogging = () => {
+    logger.resetSink();
+    logStream?.end();
+  };
+
+  logger.setSink((formattedText, record) => {
+    if (logStream) {
+      logStream.write(formattedText.replace(/\x1b\[[0-9;]*m/g, ""));
+    }
+    onLogRecord?.(record);
+  });
+
   const renderer = await createCliRenderer({
     exitOnCtrlC: false,
     useMouse: true,
@@ -537,10 +562,7 @@ export async function runTuiApp(): Promise<void> {
   const btnPdfTheme = makeMiniButton(renderer, `📄 Style: ${THEMES[state.pdfTheme].name.split(" ")[0]}`, () => cyclePdfTheme());
   const btnTuiTheme = makeMiniButton(renderer, `🎨 UI: ${THEME_PALETTES[state.tuiTheme].name.split(" ")[0]}`, () => cycleTuiTheme());
   const btnMode = makeMiniButton(renderer, "✏ Mode", () => toggleMode());
-  const btnQuit = makeMiniButton(renderer, "✕ Quit (Ctrl+Q)", () => {
-    renderer.destroy();
-    void shutdownRenderer();
-  });
+  const btnQuit = makeMiniButton(renderer, "✕ Quit (Ctrl+Q)", () => quitApp());
   footer.add(btnGenerate.box);
   footer.add(btnSave.box);
   footer.add(btnOpenFile.box);
@@ -573,6 +595,18 @@ export async function runTuiApp(): Promise<void> {
     dispatch({ type: "add-message", message: wrapped });
     messages.content = state.messages.join("\n");
   }
+
+  onLogRecord = (record) => {
+    if (record.level === "warn" || record.level === "error") {
+      addMessage(`[${record.level.toUpperCase()}] ${record.message}`);
+    }
+  };
+
+  const quitApp = () => {
+    cleanupLogging();
+    renderer.destroy();
+    void shutdownRenderer();
+  };
 
   function updateDiagnostics(result: LintResult): void {
     lineNumberGutter.clearAllLineColors();
@@ -1005,13 +1039,11 @@ export async function runTuiApp(): Promise<void> {
   renderer.on(CliRenderEvents.RESIZE, updateLayout);
   renderer.keyInput.on("keypress", (key: KeyEvent) => {
     if (key.ctrl && key.name === "c") {
-      renderer.destroy();
-      void shutdownRenderer();
+      quitApp();
       return;
     }
     if (key.ctrl && key.name === "q") {
-      renderer.destroy();
-      void shutdownRenderer();
+      quitApp();
       return;
     }
     if (key.ctrl && key.name === "s" && state.screen === "workspace") {
@@ -1064,6 +1096,7 @@ export async function runTuiApp(): Promise<void> {
 
 if (import.meta.main) {
   void runTuiApp().catch(async (error) => {
+    logger.resetSink();
     console.error(formatDocketError(error));
     await shutdownRenderer();
     process.exitCode = 1;

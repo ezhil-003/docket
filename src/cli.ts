@@ -287,11 +287,13 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
 
     if (parsed.jsonLog) {
       logger.setFormat("json");
-    }
-    if (parsed.quiet) {
+      logger.setLevel(parsed.verbose ? "debug" : "info");
+    } else if (parsed.quiet) {
       logger.setLevel("silent");
     } else if (parsed.verbose) {
       logger.setLevel("debug");
+    } else {
+      logger.setLevel("warn");
     }
 
     if (!parsed.paste && !parsed.inputPath) {

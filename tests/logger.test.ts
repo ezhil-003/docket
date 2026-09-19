@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test";
-import { Logger } from "../src/core/logger";
+import { Logger, type LogRecord, formatPrettyData } from "../src/core/logger";
 import { tracer } from "../src/core/telemetry";
 
 describe("Structured Logger (logger.ts)", () => {
@@ -18,6 +18,11 @@ describe("Structured Logger (logger.ts)", () => {
 
   afterEach(() => {
     process.stderr.write = originalStderrWrite;
+  });
+
+  it("defaults to warn level", () => {
+    const defaultLogger = new Logger();
+    expect(defaultLogger.getLevel()).toBe("warn");
   });
 
   it("filters messages based on log level configuration", () => {
@@ -44,6 +49,44 @@ describe("Structured Logger (logger.ts)", () => {
     expect(stderrOutput).toHaveLength(0);
   });
 
+  const stripAnsi = (str: string) => str.replace(/\x1b\[[0-9;]*m/g, "");
+
+  it("formats pretty data as readable tokens without raw JSON stringification", () => {
+    const rawTokens = formatPrettyData({
+      bytes: 350024,
+      durationMs: 640,
+      outputPath: "/Users/test/Documents/report.pdf",
+      cached: true,
+      retries: 2,
+    });
+    const stripped = stripAnsi(rawTokens);
+
+    // Verify key formatted tokens are present
+    expect(stripped).toContain("size=341.8 KB");
+    expect(stripped).toContain("duration=640ms");
+    expect(stripped).toContain("file=report.pdf");
+    expect(stripped).toContain("cached=true");
+    expect(stripped).toContain("retries=2");
+
+    // Must NOT contain raw JSON syntax
+    expect(rawTokens).not.toContain('{"');
+    expect(rawTokens).not.toContain("}");
+  });
+
+  it("formats pretty logs cleanly in terminal mode", () => {
+    logger.setLevel("info");
+    logger.info("Render complete", { bytes: 1048576, durationMs: 1250, file: "doc.pdf" });
+
+    expect(stderrOutput).toHaveLength(1);
+    const stripped = stripAnsi(stderrOutput[0]!);
+    expect(stripped).toContain("INFO");
+    expect(stripped).toContain("Render complete");
+    expect(stripped).toContain("size=1.00 MB");
+    expect(stripped).toContain("duration=1.25s");
+    expect(stripped).toContain("file=doc.pdf");
+    expect(stderrOutput[0]).not.toContain('{"bytes":');
+  });
+
   it("formats output as valid JSON lines (NDJSON) in json mode", () => {
     logger.setFormat("json");
     logger.setLevel("debug");
@@ -60,11 +103,39 @@ describe("Structured Logger (logger.ts)", () => {
     expect(parsed.pid).toBe(process.pid);
   });
 
+  it("supports pluggable sinks to divert logs away from stderr", () => {
+    const sinkRecords: LogRecord[] = [];
+    const sinkFormatted: string[] = [];
+
+    logger.setSink((formatted, record) => {
+      sinkFormatted.push(formatted);
+      sinkRecords.push(record);
+    });
+
+    logger.setLevel("info");
+    logger.info("Intercepted message", { worker: "cdp-1" });
+
+    // Custom sink received the log
+    expect(sinkRecords).toHaveLength(1);
+    expect(sinkRecords[0]?.message).toBe("Intercepted message");
+    expect(sinkRecords[0]?.data?.worker).toBe("cdp-1");
+    expect(sinkFormatted).toHaveLength(1);
+
+    // stderr was NOT touched
+    expect(stderrOutput).toHaveLength(0);
+
+    // resetSink restores stderr writing
+    logger.resetSink();
+    logger.warn("Restored message");
+    expect(stderrOutput).toHaveLength(1);
+    expect(stderrOutput[0]).toContain("Restored message");
+  });
+
   it("automatically injects active span traceId, spanId, and stage into logs", async () => {
     logger.setFormat("json");
     logger.setLevel("info");
 
-    await tracer.withSpan("docket.cdp_render", async (span) => {
+    await tracer.withSpan("docket.cdp_render", async () => {
       logger.info("Page loaded inside CDP span");
     });
 
@@ -97,16 +168,16 @@ describe("Structured Logger (logger.ts)", () => {
     expect(parsed.data).toEqual({ retries: 3 });
   });
 
-  it("creates child loggers that inherit and merge context", () => {
-    logger.setFormat("json");
-    const child = logger.child({ component: "browser_pool", workerId: 7 });
+  it("creates child loggers that inherit context and active sink", () => {
+    const sinkRecords: LogRecord[] = [];
+    logger.setSink((_, record) => sinkRecords.push(record));
+    logger.setLevel("info");
 
+    const child = logger.child({ component: "browser_pool", workerId: 7 });
     child.info("Worker allocated", { memoryMb: 128 });
 
-    expect(stderrOutput).toHaveLength(1);
-    const parsed = JSON.parse(stderrOutput[0]!.trim());
-
-    expect(parsed.data).toEqual({
+    expect(sinkRecords).toHaveLength(1);
+    expect(sinkRecords[0]?.data).toEqual({
       component: "browser_pool",
       workerId: 7,
       memoryMb: 128,
